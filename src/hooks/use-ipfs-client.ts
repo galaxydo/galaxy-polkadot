@@ -25,9 +25,9 @@ export const useIPFSClient = () => {
             console.log('result', result);
             return [null, result.path];
         } catch (error) {
-            return [null, error];
+            return [error, null];
         }
     };
-
+    
     return { data, loadScene, saveScene };
 };
