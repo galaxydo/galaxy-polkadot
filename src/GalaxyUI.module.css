@@ -1,0 +1,105 @@
+.galaxyUI {
+    position: relative;
+}
+
+.topLeft {
+    position: absolute;
+    top: 15px;
+    left: 20px;
+    display: flex;
+    gap: 10px;
+    z-index: 4;
+}
+
+.topRight {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    display: flex;
+    gap: 10px;
+    z-index: 4;
+}
+
+.bottomRight {
+    position: fixed;
+    bottom: 15px;
+    right: 20px;
+    z-index: 4;
+}
+
+.dialogCentered {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #333333;
+    padding: 20px;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    z-index: 100;
+}
+
+.dialogContent {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    color: white;
+}
+
+.customButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+    border-radius: 4px;
+    padding: 0;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    background-color: #262627;
+    color: #ffffff;
+    padding: 0.6rem;
+    font-size: 14px;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.customButton:hover {
+    background-color: #505050;
+}
+
+.customButton:active {
+    background-color: #6a6a6a;
+}
+
+h3 {
+    color: #ffffff;
+    margin-bottom: 10px;
+}
+
+label {
+    color: white;
+}
+
+input[type="text"] {
+    padding: 0.5rem;
+    background-color: #ffffff;
+    border: 1px solid #cccccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.notification {
+    backgroundColor: "#4caf50";
+    padding: "10px";
+    marginBottom: "10px";
+    borderRadius: "4px";
+    color: #ffffff;
+}
+
+.error {
+    backgroundColor: "#f44336";
+    color: white;
+    padding: "10px";
+    marginBottom: "10px";
+    borderRadius: "4px";
+}
