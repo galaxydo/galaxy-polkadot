@@ -1,58 +1,32 @@
-# syntax=docker/dockerfile:1.4
+# Use the official Node.js 16.x runtime as a parent image
+FROM node:16-alpine as build
 
-# 1. For build React app
-FROM node:lts AS development
-
-# Set working directory
+# Set the working directory to /app
 WORKDIR /app
 
-# 
-COPY package.json /app/package.json
-COPY package-lock.json /app/package-lock.json
+# Copy package.json and yarn.lock to the container
+COPY package.json yarn.lock ./
 
-# Same as npm install
-RUN npm ci
+# Install dependencies
+RUN yarn install --frozen-lockfile
 
-COPY . /app
+# Copy the rest of the application code to the container
+COPY . .
 
-ENV CI=true
-ENV PORT=3000
+# Build the application for production
+RUN yarn build
 
-CMD [ "npm", "start" ]
-
-FROM development AS build
-
-RUN npm run build
-
-
-FROM development as dev-envs
-RUN <<EOF
-apt-get update
-apt-get install -y --no-install-recommends git
-EOF
-
-RUN <<EOF
-useradd -s /bin/bash -m vscode
-groupadd docker
-usermod -aG docker vscode
-EOF
-# install Docker tools (cli, buildx, compose)
-COPY --from=gloursdocker/docker / /
-CMD [ "npm", "start" ]
-
-# 2. For Nginx setup
+# Use Nginx as a parent image for serving the static content
 FROM nginx:alpine
 
-# Copy config nginx
-COPY --from=build /app/.nginx/nginx.conf /etc/nginx/conf.d/default.conf
+# Copy the build artifacts from the previous stage to the container
+COPY --from=build /app/build /usr/share/nginx/html
 
-WORKDIR /usr/share/nginx/html
+# Copy the Nginx configuration to the container
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Remove default nginx static assets
-RUN rm -rf ./*
+# Expose port 80 for incoming traffic
+EXPOSE 80
 
-# Copy static assets from builder stage
-COPY --from=build /app/build .
-
-# Containers run nginx with global directives and daemon off
-ENTRYPOINT ["nginx", "-g", "daemon off;"]
+# Start Nginx
+CMD ["nginx", "-g", "daemon off;"]
