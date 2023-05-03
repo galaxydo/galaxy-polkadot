@@ -52,6 +52,28 @@ yarn dev
 yarn test
 ```
 
+### Running IPFS locally (optional)
+
+1. Mount a host directory with the -v option to Docker. 
+
+```
+export ipfs_staging=</absolute/path/to/somewhere/>
+export ipfs_data=</absolute/path/to/somewhere_else/>
+```
+
+2. Start a container running ipfs and expose ports 4001 (P2P TCP/QUIC transports), 5001 (RPC API) and 8080 (Gateway):
+
+```
+docker run -d --name ipfs_host -v $ipfs_staging:/export -v $ipfs_data:/data/ipfs -p 4001:4001 -p 4001:4001/udp -p 127.0.0.1:8080:8080 -p 127.0.0.1:5001:5001 ipfs/kubo:latest
+```
+
+3. Update src/config.ts
+
+```
+export const ipfsApiUrl = "http://localhost:5001"
+export const ipfsGatewayUrl = "http://localhost:8080"
+```
+
 ## License
 
 This project is licensed under the MIT License.
