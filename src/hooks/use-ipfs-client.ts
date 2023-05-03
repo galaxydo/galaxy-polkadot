@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { create, urlSource } from "kubo-rpc-client";
+import { ipfsApiUrl, ipfsGatewayUrl } from "../config";
 
-const client = create(new URL("https://ipfs.galaxydo.space"));
+const client = create(new URL(ipfsApiUrl));
 
 export const useIPFSClient = () => {
     const [data, setData] = useState(null);
 
     const loadScene = async (hash) => {
-        const response = await fetch("https://gateway.galaxydo.space/ipfs/" + hash)
+        const response = await fetch(`${ipfsGatewayUrl}/${hash}`)
             .then(it => {
                 if (it.status == 200) {
                     return it.json();
