@@ -8,7 +8,7 @@ export const useIPFSClient = () => {
     const [data, setData] = useState(null);
 
     const loadScene = async (hash) => {
-        const response = await fetch(`${ipfsGatewayUrl}/${hash}`)
+        const response = await fetch(`${ipfsGatewayUrl}/ipfs/${hash}`)
             .then(it => {
                 if (it.status == 200) {
                     return it.json();
