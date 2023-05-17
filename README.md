@@ -7,7 +7,6 @@ Galaxy (Milestone 1) is a web application built with React, allowing users to cr
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
-  - [Running the Application](#running-the-application)
 - [Running the Tests](#running-the-tests)
 - [License](#license)
 
@@ -23,28 +22,44 @@ These instructions will help you set up the project on your local machine for de
 
 ### Installation
 
-1. Clone the repository:
+Clone the repository:
 
 ```
 https://github.com/7flash/galaxy-polkadot.git
 cd galaxy-polkadot
 ```
 
-2. Install the dependencies:
+### with docker
+
+1. Build docker image
+
+```
+docker build -t galaxy-v1 .
+```
+
+2. Run container exposing internal port 80 to custom host port
+
+```
+docker run -p 5173:80 galaxy-v1
+```
+
+### manually
+
+1. Install the dependencies:
 
 ```
 yarn install
 ```
 
-### Running the Application
-
-1. Start the development server:
+2. Start the development server:
 
 ```
 yarn dev
 ```
 
-2. Open your browser and navigate to `http://localhost:5173`.
+### Running App
+
+3. Open your browser and navigate to `http://localhost:5173`.
 
 ## Running the Tests
 
