@@ -1,3 +1,76 @@
+/* Badge for macro name */
+.macroBadge {
+  background-color: #ff9900;
+  color: white;
+  padding: 5px;
+  border-radius: 4px;
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+
+
+.fKeyButton {
+  background-color: #262627;
+  border: none;
+  color: #ffffff;
+  padding: 10px 15px;
+  margin: 0 5px;
+  cursor: pointer;
+  position: relative;
+}
+
+.selectedFKeyButton, .fKeyButton:hover {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  margin: 0 5px;
+  cursor: pointer;
+  position: relative;
+}
+
+/* Style for macro name */
+.macroName {
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+
+/* Badge for selected elements count */
+.selectionBadge {
+  font-size: 12px;
+  background-color: #ff9900;
+  color: white;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: absolute;
+  top: -5px; /* Adjust the positioning */
+  right: 5px; /* Adjust the positioning */
+  transition: width 0.2s ease-in-out, height 0.2s ease-in-out;
+}
+
+/* Apply a scale effect on hover */
+.fKeyButton:hover .selectionBadge {
+  width: 24px;
+  height: 24px;
+}
+
+/* Styles for the bottom center div */
+.bottomCenter {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  z-index: 4;
+}
+
 .galaxyUI {
     position: relative;
 }

@@ -14,7 +14,9 @@ const Dialogs = {
   ConnectWallet: 'ConnectWallet',
 };
 
-const GalaxyUI = ({ excalidrawRef }) => {
+const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
+  console.log('GalaxyUI', macros);
+
   const { accounts, enableExtension } = usePolkadotExtension();
   const { data, loadScene, saveScene } = useIPFSClient();
 
@@ -24,6 +26,27 @@ const GalaxyUI = ({ excalidrawRef }) => {
   const [sceneCreator, setSceneCreator] = useState("");
   const [notifications, setNotifications] = useState([]);
   const [errors, setErrors] = useState([]);
+
+  // State to track the selected F key
+  const [selectedFKey, setSelectedFKey] = useState('');
+
+  /*
+    const macros = new Map([
+      ['Macro1', [
+        { name: 'Macro1_1', hotkey: 'F1' },
+        { name: 'Macro1_2', hotkey: 'F2' },
+      ]],
+      ['Macro2', [
+        { name: 'Macro2_1', hotkey: 'F3' },
+      ]],
+      // ... Define more macros here
+    ]);
+  */
+  // Function to handle F key button click
+  const handleFKeyClick = (fKey) => {
+    setSelectedFKey(fKey);
+    onMacrosInvoked(fKey);
+  };
 
   const openDialog = (dialog) => {
     setCurrentDialog(dialog);
@@ -287,6 +310,23 @@ const GalaxyUI = ({ excalidrawRef }) => {
           {error}
         </div>
       ))}
+    </div>
+
+    <div className={styles.bottomCenter}>
+      {macros && Array.from(macros.entries()).map(([macroName, macroList]) => {
+        return (
+          <button
+            data-testid={`macro-button-${macroName}`}
+            key={macroName}
+            className={selectedFKey === macroName ? styles.selectedFKeyButton : styles.fKeyButton}
+            onClick={() => handleFKeyClick(macroName)}
+            title={`Hotkey: ${macroList[0].hotkey}`} // Assuming the hotkey is the same for all macros in the list
+          >
+            <div className={styles.macroName}>{macroName}</div>
+            <div className={styles.selectionBadge}>{`x${macroList.length}`}</div>
+          </button>
+        );
+      })}
     </div>
   </div>
   );
