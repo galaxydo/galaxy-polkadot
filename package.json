@@ -10,7 +10,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "@excalidraw/excalidraw": "npm:@galaxydo/excalidraw",
+    "@excalidraw/excalidraw": "npm:@galaxydo/excalidraw@0.15.2-aug28-second",
     "@galaxydo/excalidraw": "0.15.2-19.14",
     "@galaxydo/excalidraw-utils": "0.1.2-23.8.18",
     "@polkadot/api": "^10.5.1",

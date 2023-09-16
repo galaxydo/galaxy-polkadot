@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { usePolkadotExtension } from "./hooks/use-polkadot-extension";
 import { useIPFSClient } from './hooks/use-ipfs-client';
 import styles from './GalaxyUI.module.css';
@@ -6,6 +6,7 @@ import AddIcon from './assets/add-icon.svg';
 import GetIcon from './assets/get-icon.svg';
 import WalletIcon from './assets/wallet-icon.svg';
 import InfoIcon from './assets/info-icon.svg';
+import { ModalContext } from './ModalDialog';
 
 const Dialogs = {
   GetScene: 'GetScene',
@@ -16,6 +17,7 @@ const Dialogs = {
 
 const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
   console.log('GalaxyUI', macros);
+  const { showModal, closeModal } = useContext(ModalContext);
 
   const { accounts, enableExtension } = usePolkadotExtension();
   const { data, loadScene, saveScene } = useIPFSClient();
@@ -26,9 +28,19 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
   const [sceneCreator, setSceneCreator] = useState("");
   const [notifications, setNotifications] = useState([]);
   const [errors, setErrors] = useState([]);
+  const [loadingMacro, setLoadingMacro] = useState(null);
 
   // State to track the selected F key
   const [selectedFKey, setSelectedFKey] = useState('');
+
+  useEffect(() => {
+    window.showModal = showModal;
+
+    return () => {
+      window.showModal = null;
+    }
+  }, []);
+
 
   /*
     const macros = new Map([
@@ -43,9 +55,11 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
     ]);
   */
   // Function to handle F key button click
-  const handleFKeyClick = (fKey) => {
+  const handleFKeyClick = async (fKey) => {
+    setLoadingMacro(fKey);
     setSelectedFKey(fKey);
-    onMacrosInvoked(fKey);
+    await onMacrosInvoked(fKey); // If onMacrosInvoked is async
+    setLoadingMacro(null);
   };
 
   const openDialog = (dialog) => {
@@ -168,16 +182,29 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
   return (<div>
     <div className={styles.topLeft}>
       <button data-test="addButton" className={styles.customButton} onClick={() => {
-        if (accounts && accounts[0]) {
-          openDialog(Dialogs.SaveScene);
-        } else {
-          showError(`Required Polkadot Wallet`)
-          openDialog(Dialogs.ConnectWallet);
-        }
+        showModal({
+          title: "Save scene",
+          callback: handleSaveToIPFS,
+          inputField: {
+            value: sceneName,
+            placeholder: "Scene Name",
+            onChange: (e) => setSceneName(e.target.value)
+          }
+        });
       }}>
         <img src={AddIcon} alt="Add" />
       </button>
-      <button data-test="loadButton" className={styles.customButton} onClick={() => openDialog(Dialogs.GetScene)}>
+      <button data-test="loadButton" className={styles.customButton} onClick={() => {
+        showModal({
+          title: "Load scene",
+          callback: handleLoadFromIPFS,
+          inputField: {
+            value: sceneHash,
+            placeholder: "Scene Hash",
+            onChange: (e) => setSceneHash(e.target.value)
+          }
+        });
+      }}>
         <img src={GetIcon} alt="Get" />
       </button>
     </div>
@@ -185,61 +212,50 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
 
     <div className={styles.topRight}>
       {accounts && (
-        <button data-test="infoButton" className={styles.customButton} onClick={() => openDialog(Dialogs.Info)}>
+        <button data-test="infoButton" className={styles.customButton} onClick={() => {
+          const formatInfoDescription = () => {
+            let infoString = "";
+
+            if (accounts && accounts[0]) {
+              infoString += `Connected Wallet: ${accounts[0].meta?.name} - ${accounts[0]?.address}\n`;
+            }
+
+            if (sceneHash) {
+              infoString += `Scene Hash: ${sceneHash}\n`;
+            }
+
+            if (data && data.name) {
+              infoString += `Scene Name: ${data.name}\n`;
+            }
+
+            if (data && data.source) {
+              infoString += `Scene Author: ${data.source}\n`;
+            }
+
+            return infoString;
+          };
+
+          showModal({
+            title: "Scene Details",
+            description: formatInfoDescription(),
+            callback: () => { }  // If there's any logic to execute on Info confirmation
+          });
+        }}>
           <img src={InfoIcon} alt="Info" />
         </button>
       )}
       {!accounts && (
-        <button data-test="walletButton" className={styles.customButton} onClick={() => openDialog(Dialogs.ConnectWallet)}>
+        <button data-test="walletButton" className={styles.customButton} onClick={() => {
+          showModal({
+            title: "Connect Wallet",
+            description: "Please connect your Polkadot wallet to save and share scenes.",
+            callback: handleConnectWallet
+          });
+        }}>
           <img src={WalletIcon} alt="Wallet" />
         </button>
       )}
     </div>
-
-    {currentDialog === Dialogs.SaveScene && (
-      <div data-test="saveDialog" className={styles.dialogCentered}>
-        <h3>Save scene</h3>
-        <div className={styles.dialogContent}>
-          <label>
-            <input
-              type="text"
-              value={sceneName}
-              placeholder="Scene Name"
-              onChange={(e) => setSceneName(e.target.value)}
-            />
-          </label>
-          <button data-test="saveButton" className={styles.customButton} onClick={handleSaveToIPFS}>
-            Save to IPFS
-          </button>
-          <button data-test="closeButton" className={styles.customButton} onClick={closeDialog}>
-            Cancel
-          </button>
-
-        </div>
-      </div>
-    )}
-
-    {currentDialog === Dialogs.GetScene && (
-      <div data-test="loadDialog" className={styles.dialogCentered}>
-        <h3>Load scene</h3>
-        <div className={styles.dialogContent}>
-          <label>
-            <input
-              type="text"
-              placeholder="Scene Hash"
-              value={sceneHash}
-              onChange={(e) => setSceneHash(e.target.value)}
-            />
-          </label>
-          <button data-test="getSceneButton" className={styles.customButton} onClick={handleLoadFromIPFS}>
-            Load from IPFS
-          </button>
-          <button data-test="cancelButton" className={styles.customButton} onClick={closeDialog}>
-            Cancel
-          </button>
-        </div>
-      </div>
-    )}
 
     {currentDialog === Dialogs.Info && (
       <div data-test="infoDialog" className={styles.dialogCentered}>
@@ -271,21 +287,6 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
           )}
           <button data-test="closeButton" className={styles.customButton} onClick={closeDialog}>
             Close
-          </button>
-        </div>
-      </div>
-    )}
-
-    {currentDialog === Dialogs.ConnectWallet && (
-      <div data-test="connectDialog" className={styles.dialogCentered}>
-        <h3>Connect Wallet</h3>
-        <div className={styles.dialogContent}>
-          <p>Please connect your Polkadot wallet to save and share scenes.</p>
-          <button data-test="connectButton" className={styles.customButton} onClick={handleConnectWallet}>
-            Connect Wallet
-          </button>
-          <button data-test="cancelButton" className={styles.customButton} onClick={closeDialog}>
-            Cancel
           </button>
         </div>
       </div>
@@ -323,7 +324,11 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
             title={`Hotkey: ${macroList[0].hotkey}`} // Assuming the hotkey is the same for all macros in the list
           >
             <div className={styles.macroName}>{macroName}</div>
-            <div className={styles.selectionBadge}>{`x${macroList.length}`}</div>
+            {loadingMacro === macroName ? (
+              <div data-testid={`loading-indicator-${macroName}`} className={styles.loadingIndicator}></div>
+            ) : (
+              <div className={styles.selectionBadge}>{`x${macroList.length}`}</div>
+            )}
           </button>
         );
       })}

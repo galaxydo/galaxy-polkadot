@@ -8,6 +8,7 @@ import { BinaryFileData, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidra
 import { ExcalidrawElement, ExcalidrawFrameElement, ExcalidrawTextElement, NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
 import throttle from "lodash.throttle";
 import debounce from "lodash.debounce";
+import { ModalProvider } from './ModalDialog';
 
 // import * as  transform from '../../../aug14/excalidraw/src/data/transform';
 
@@ -117,6 +118,7 @@ export default function App() {
       ) => onPointerUpdate()}
     />
   ), [excalidrawRef]);
+
   const getArrowLabel = (arrow, elementMap) => {
     if (arrow.boundElements) {
       const labelElement = elementMap[arrow.boundElements[0].id];
@@ -131,7 +133,6 @@ export default function App() {
     console.log(new Date());
 
     const ea = excalidrawRef?.current;
-
     if (!ea) return;
 
     const elIds = ea.getAppState().selectedElementIds;
@@ -143,27 +144,53 @@ export default function App() {
     // Convert the array to a map for quicker lookups
     const elementMap = Object.fromEntries(ea.getSceneElements().map(e => [e.id, e]));
 
-    for (const textElement of selectedEls) {
-      if (textElement.type !== 'text' || !textElement.boundElements) continue;
+    for (const element of selectedEls) {
+      // Check for arrows
+      if (element.type === 'text' && element.boundElements) {
+        for (const boundEl of element.boundElements) {
+          const arrow = elementMap[boundEl.id];
+          if (arrow?.type === 'arrow' && arrow?.startBinding?.elementId === element.id) {
+            const macroName = getArrowLabel(arrow, elementMap);
+            if (macroName) {
+              if (!newSelectedMacros.has(macroName)) newSelectedMacros.set(macroName, []);
 
-      for (const boundEl of textElement.boundElements) {
-        const arrow = elementMap[boundEl.id];
-
-        if (arrow?.type === 'arrow' && arrow?.startBinding?.elementId === textElement.id) {
-          const macroName = getArrowLabel(arrow, elementMap);
-          if (macroName) {
-            if (!newSelectedMacros.has(macroName)) newSelectedMacros.set(macroName, []);
-
-            const macroDetails = {
-              'name': macroName,
-              'inputFrom': arrow.startBinding.elementId,
-              'outputTo': arrow.endBinding?.elementId,
-            };
-            newSelectedMacros.get(macroName).push(macroDetails);
+              const macroDetails = {
+                'name': macroName,
+                'inputFrom': arrow.startBinding.elementId,
+                'outputTo': arrow.endBinding?.elementId,
+              };
+              newSelectedMacros.get(macroName).push(macroDetails);
+            }
           }
         }
       }
+      console.log('!', 'customData', JSON.stringify(element.customData));
+      // Check for customData field with macros
+      if (element.customData && element.customData.macros) {
+        // Log the current element being processed
+        console.log('Processing element:', element.id);
+
+        for (const macroName in element.customData.macros) {
+          console.log('!', 'macroName', macroName);
+
+          // This condition seems redundant since we're already iterating through macroNames. Consider removing it.
+          // if (!element.customData.macros[macroName]) continue;
+
+          if (!newSelectedMacros.has(macroName)) newSelectedMacros.set(macroName, []);
+
+          const macroDetails = {
+            'name': macroName,
+            'inputFrom': element.id,
+            'outputTo': element.id, // Note: As mentioned, you might need to decide how to determine the output element.
+          };
+
+          console.log('!', 'macroDetails', JSON.stringify(macroDetails));
+          newSelectedMacros.get(macroName).push(macroDetails);
+        }
+      }
     }
+
+    console.log('!', 'newSelectedMacros', JSON.stringify([...newSelectedMacros]));
 
     setSelectedMacros(newSelectedMacros);
 
@@ -177,6 +204,7 @@ export default function App() {
     if (!m) return;
 
     const updateOutputText = (outputEl, text: string) => {
+      console.log('!', 'updateOutputText', outputEl.id, text);
       ea.updateScene({
         elements: ea.getSceneElements().map(it => {
           if (it.id === outputEl.id) {
@@ -195,44 +223,80 @@ export default function App() {
 
     for (const it of m) {
       const inputEl = ea.getSceneElements().find(jt => jt.id === it.inputFrom);
-      const outputEl = ea.getSceneElements().find(jt => jt.id === it.outputTo);
+      let outputEl = ea.getSceneElements().find(jt => jt.id === it.outputTo);
+      if (!inputEl) throw 'no input element';
+      console.log('!', 'outputEl', JSON.stringify(outputEl));
+      if (!outputEl) throw 'no output element';
 
-      let outputText = 'empty';
-
-      if (inputEl?.type === 'text') {
-        try {
-          const result = await window.ga.executeMacro(macroName, inputEl);
-
-          if (typeof result === 'function') {
-            // Handle the result if it's a function.
-            // This depends on what you expect the function to do.
-          } else if (typeof result === 'string') {
-            outputText = result;
-          } else if (typeof result === 'object') {
-            if (result instanceof Array) {
-              outputText = result[0].text;
-            } else {
-              outputText = result.text;
+      try {
+        let updatedEl = await window.ga.executeMacro(macroName, inputEl);
+        if (typeof updatedEl == 'number') {
+          updatedEl = `${updatedEl}`;
+        }
+        console.log('!', 'updatedEl', updatedEl)
+        console.log('!', 'els-before', JSON.stringify(ea.getSceneElements().map(it => it.id)));
+        ea.updateScene({
+          elements: ea.getSceneElements().map(it => {
+            if (it.id === outputEl.id) {
+              console.log('!', 'update-from', JSON.stringify(it));
+              if (updatedEl instanceof Array) {
+                if (it.type == 'frame') {
+                  // insert new elements into the frame
+                  const newFrame = updatedEl.find(jt => jt.id == outputEl.id);
+                  if (!newFrame) throw 'should return elements with frame';
+                  it = [{
+                    ...outputEl,
+                    ...newFrame,
+                  }, ...updatedEl.filter(jt => jt.id != newFrame.id).map(jt => ({
+                    ...jt,
+                    frameId: outputEl.id, // assign to frame
+                  }))]
+                }
+              } else if (typeof updatedEl == 'object') {
+                it = {
+                  ...it,
+                  ...updatedEl,
+                  'version': it.version + 1,
+                }
+              } else if (typeof updatedEl == 'string') {
+                if (it.type == 'frame') {
+                  it = {
+                    ...it,
+                    name: updatedEl,
+                    'version': it.version + 1,
+                  }
+                } else if (it.type == 'text') {
+                  it = {
+                    ...it,
+                    text: updatedEl,
+                    originalText: updatedEl,
+                  }
+                }
+              }
+              console.log('!', 'update-to', JSON.stringify(it));
             }
 
-          }
-        } catch (err) {
-          console.error(err);
-          outputText = `Macro Failed: ${err}`;
-        }
-      }
-
-      if (outputEl?.type === 'text') {
-        updateOutputText(outputEl, outputText);
+            return it;
+          }).reduce((prev, curr) => {
+            if (curr instanceof Array) {
+              return [...prev, ...curr];
+            }
+            return [...prev, curr];
+          }, [])
+        })
+        console.log('!', 'els-after', JSON.stringify(ea.getSceneElements().map(it => it.id)));
+      } catch (err) {
+        console.error('!', 'App', macroName, err.toString());
       }
     }
   }
 
-
   return (
     <div className="main">
       {excalidrawComponent}
-      <GalaxyUI excalidrawRef={excalidrawRef} macros={selectedMacros} onMacrosInvoked={onMacrosInvoked} />
+      <ModalProvider>
+        <GalaxyUI excalidrawRef={excalidrawRef} macros={selectedMacros} onMacrosInvoked={onMacrosInvoked} />
+      </ModalProvider>
     </div>
   );
 }
