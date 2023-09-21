@@ -18,6 +18,8 @@ class GalaxyAPI {
     this.registerMacro("Deno", this.defaultDenoMacro.bind(this));
     this.registerMacro("save", this.defaultSaveMacro.bind(this));
     this.registerMacro("open", this.defaultOpenMacro.bind(this));
+    this.registerMacro("publish", this.defaultPublishMacro.bind(this));
+
   }
 
   registerMacro(name: string, fn: MacroFunction): void {
@@ -66,6 +68,8 @@ class GalaxyAPI {
     }
   }
 
+
+
   private defaultDenoMacro(input: ExcalidrawElement): ExcalidrawElement[] {
     this.log(`Input received: ${JSON.stringify(input)}`, "defaultDenoMacro");
     try {
@@ -75,11 +79,26 @@ class GalaxyAPI {
       const match = macroSource.match(regex);
       const functionName = (match && match[1]) || "AnonymousDeno";
 
-      const wrappedFunction = new Function(`
-      return async function(inputElement) {
-        return window.webui.executeDeno(\`${macroSource.replace(/`/g, "\\`")}\`);
-      }
-    `)();
+      const wrappedFunction = async (inputElement) => {
+        const response = await window.webui.call('executeDeno', JSON.stringify({
+          code: `(${macroSource})`,
+          input: inputElement
+        }));
+        console.log('response', response);
+        if (response.success) {
+          return response.data;
+        } else {
+          console.error('deno', response.error);
+          return response.error;
+        }
+      };
+
+      //   const wrappedFunction = new Function(`
+      //   return async function(inputElement) {
+      //     return window.webui.call('executeDeno', \`${macroSource.replace(/`/g, "\\`")}\`);
+      //   }
+      // `)();
+
       this.registerMacro(functionName, wrappedFunction);
       return `${functionName} registered at ${new Date().toTimeString()}`;
     } catch (error) {
@@ -87,8 +106,6 @@ class GalaxyAPI {
       throw new Error("Error parsing Deno function: " + error);
     }
   }
-
-
 
   private getPythonFunctionName(macroSource: string): string | null {
     const match = macroSource.match(/def (\w+)\(/);
@@ -137,7 +154,6 @@ class GalaxyAPI {
     };
   }
 
-
   private async defaultSaveMacro(input: ExcalidrawElement): Promise<ExcalidrawElement[]> {
     this.log(`Input received: ${JSON.stringify(input)}`, "defaultSaveMacro");
     return new Promise(async (resolve, reject) => {
@@ -181,6 +197,67 @@ class GalaxyAPI {
       }
     });
   }
+
+  private async defaultPublishMacro(input: ExcalidrawElement): Promise<ExcalidrawElement[]> {
+    return new Promise(async (resolve, reject) => {
+      try {
+        let layerName = '';
+
+        const handlePublishToGalaxy = async () => {
+          try {
+            if (!layerName) {
+              throw "Layer name not provided.";
+            }
+
+            const ipfsLink = await window.ipfs.upload([input]);
+
+            // Inline write to smart contract
+            if (!window.contracts || !window.contracts.write) {
+              throw new Error("Smart contract write function is not available.");
+            }
+
+            const args = [layerName, ipfsLink];
+            const transactionId = await window.contracts.write({
+              address: '0x1', // Replace with your contract address
+              method: 'saveLayer', // Replace with your contract method
+              args,
+            });
+
+            window.showNotification(`${transactionId} broadcasted`);
+
+            const result = `${layerName} - ${ipfsLink}`;
+
+            resolve(result);
+          } catch (error) {
+            this.log(`Error during publishing: ${error}`, "defaultPublishMacro");
+            return reject(error);
+          }
+        };
+
+        await window.showModal({
+          title: "Publish to Galaxy",
+          callback: handlePublishToGalaxy,
+          inputField:
+          {
+            label: "Layer Name",
+            value: layerName,
+            placeholder: "Enter Layer Name",
+            onChange: (e) => {
+              console.log('! onChange', e.target.value);
+              layerName = e.target.value;
+            }
+          },
+          
+        });
+      } catch (error) {
+        this.log(`Error in defaultPublishMacro: ${error}`, "defaultPublishMacro");
+        reject(error);
+      }
+    });
+  }
+
+
+
   private async defaultOpenMacro(input: ExcalidrawElement): Promise<ExcalidrawElement[]> {
     this.log(`Input received: ${JSON.stringify(input)}`, "defaultOpenMacro");
 

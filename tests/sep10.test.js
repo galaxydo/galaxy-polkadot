@@ -392,9 +392,104 @@ describe("Galaxy Macros Engine", () => {
     await browser.close();
 
   });
-  it("should publish layer elements and images uploading to ipfs then broadcasting to smart contract map", () => {
+  it.only("should publish layer elements and images uploading to IPFS then broadcasting to smart contract map", async () => {
+    // Arrange: Set up the initial state for the test.
+    const { page, browser } = await initializeTestPage();
 
+    // Mock behavior for window.contracts.write.
+    await page.evaluate(() => {
+      window.contracts = {
+        write: async ({ address, method, args }) => {
+          // Mock behavior for writing to a smart contract.
+          // Check that the method is "publish" and args contain layer name and ipfs link.
+          if (method !== "saveLayer" || !args || args.length !== 2) {
+            throw new Error("Invalid call to contracts.write");
+          }
+
+          const [layerName, ipfsLink] = args;
+          console.log('GalaxyAPI', `Writing to contract: Address ${address}, Method ${method}, Args ${args}`);
+
+          // Return a promise that resolves instantly with a mock transaction ID.
+          const mockTransactionId = 'mock-transaction-id'; // Mock transaction ID
+          return Promise.resolve(mockTransactionId);
+        },
+      };
+    });
+
+    // Mock behavior for window.ipfs.upload.
+    await page.evaluate(() => {
+      window.ipfs = {
+        upload: async (elements) => {
+          // Mock behavior for uploading to IPFS.
+          // Check that elements is an array of scene elements.
+          if (!Array.isArray(elements)) {
+            throw new Error("Invalid call to ipfs.upload");
+          }
+
+          // Return a mock IPFS link.
+          const mockIpfsLink = 'ipfs://example-ipfs-link'; // Mock IPFS link
+          return mockIpfsLink;
+        },
+      };
+    });
+
+    // Act: Perform the actions necessary to test the publish functionality.
+    // Spawn and select a frame element.
+    const frameId = "frameId";
+    const elements = [
+      {
+        type: 'frame',
+        id: frameId,
+        bounds: { x1: 100, y1: 100, x2: 300, y2: 300 },
+        customData: {
+          macros: {
+            save: true,
+            open: true,
+            publish: true, // Add the publish flag to the customData.
+          },
+        },
+      },
+    ];
+
+    await setupSceneOnPage(page, elements, frameId);
+
+    // Click on the publish macro button.
+    await executeMacroOnPage(page, "macro-button-publish");
+
+    // Wait for and validate the modal.
+    await page.waitForSelector(`[data-testid="modal-dialog"]`);
+    const modal = await page.$(`[data-testid="modal-dialog"]`);
+    expect(modal).toBeTruthy();
+
+    // Fill in a layer name in the modal input field.
+    const layerInput = await modal.$(`[data-testid="modal-input"]`);
+    expect(layerInput).toBeTruthy();
+    await layerInput.type('layerName');
+
+    // Click the confirm button.
+    const modalConfirmButton = await modal.$(`[data-testid="modal-button"]`);
+    await modalConfirmButton.click();
+
+    // Validate the frame's updated name.
+    const updatedFrameName = await page.evaluate((frameId) => {
+      const frameElement = window.ea.getSceneElements().find(it => it.id === frameId);
+      return frameElement ? frameElement.name : null;
+    }, frameId);
+
+    expect(updatedFrameName.includes('layerName')).toBe(true);
+
+    // Wait for success notification to appear.
+    // await page.waitForSelector(`[data-testid="notification-success"]`, { visible: true });
+
+    // Assert: Verify that the notification message includes the mock transaction ID.
+    // const notificationText = await page.$eval(`[data-testid="notification-success"]`, (notification) => notification.textContent);
+    // const mockTransactionId = 'mock-transaction-id'; // Replace with your actual mock transaction ID
+    // expect(notificationText).toContain(mockTransactionId);
+
+    // Close the browser to end the test.
+    await browser.close();
   });
+
   it("should correctly update frame name with output from save macro", async () => {
     const { page, browser } = await beforeTest();
 

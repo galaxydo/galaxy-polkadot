@@ -9,7 +9,9 @@ import { ExcalidrawElement, ExcalidrawFrameElement, ExcalidrawTextElement, NonDe
 import throttle from "lodash.throttle";
 import debounce from "lodash.debounce";
 import { ModalProvider } from './ModalDialog';
-
+import { UseInkProvider } from 'useink';
+import { RococoContractsTestnet, ShibuyaTestnet } from 'useink/chains';
+import { NotificationContext, NotificationProvider } from './NotificationContext';  // Import NotificationContext
 // import * as  transform from '../../../aug14/excalidraw/src/data/transform';
 
 // import { convertToExcalidrawElements } from "@galaxydo/excalidraw-utils";
@@ -61,6 +63,12 @@ const assert = (cond, msg = 'failed') => {
 
 export default function App() {
   const excalidrawRef = useRef<ExcalidrawImperativeAPI>(null);
+
+  const useInkConfig = {
+    dappName: 'Flipper',  // The name displayed to the user when connecting their wallet.
+    chains: [RococoContractsTestnet, ShibuyaTestnet]  // Chains that our dapp will support.
+  };
+
 
   useEffect(() => {
     console.log('window.excalidraw', excalidrawRef.current);
@@ -292,11 +300,15 @@ export default function App() {
   }
 
   return (
-    <div className="main">
-      {excalidrawComponent}
-      <ModalProvider>
-        <GalaxyUI excalidrawRef={excalidrawRef} macros={selectedMacros} onMacrosInvoked={onMacrosInvoked} />
-      </ModalProvider>
-    </div>
+    <UseInkProvider config={useInkConfig}>
+      <div className="main">
+        <NotificationProvider>
+          {excalidrawComponent}
+          <ModalProvider>
+            <GalaxyUI excalidrawRef={excalidrawRef} macros={selectedMacros} onMacrosInvoked={onMacrosInvoked} />
+          </ModalProvider>
+        </NotificationProvider>
+      </div>
+    </UseInkProvider>
   );
 }

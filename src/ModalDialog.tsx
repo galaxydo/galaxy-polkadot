@@ -1,5 +1,6 @@
 import { createContext, useState, useContext } from 'react';
 import styles from './GalaxyUI.module.css';
+import { NotificationContext } from './NotificationContext';  // Import NotificationContext
 
 export const ModalContext = createContext();
 
@@ -40,6 +41,7 @@ export const ModalProvider = ({ children }) => {
 
 const ModalComponent = ({ title, description, callback, inputField }) => {
   const { closeModal } = useContext(ModalContext);
+  const { showNotification } = useContext(NotificationContext); // Assuming the NotificationContext is available
 
   // Create a local state for the input value
   const [inputValue, setInputValue] = useState(inputField ? inputField.value : '');
@@ -47,18 +49,26 @@ const ModalComponent = ({ title, description, callback, inputField }) => {
   const handleInputChange = (e) => {
     setInputValue(e.target.value);
 
-    // If an onChange handler is provided in inputField, call it
     if (inputField && inputField.onChange) {
       inputField.onChange(e);
     }
   };
 
-  const handleConfirmClick = () => {
+  const handleConfirmClick = async () => {
+    closeModal();
     if (inputField && inputField.onConfirm) {
       inputField.onConfirm(inputValue);
     }
-    callback();
-    closeModal();
+    if (callback) {
+      try {
+        const message = await callback(inputValue);
+        showNotification({ type: 'success', message: message }); // Notify success
+      } catch (error) {
+        console.error(error);
+        const errorMessage = error.message || 'An error occurred';
+        showNotification({ type: 'error', message: errorMessage }); // Notify error
+      }
+    }
   };
 
   return (
@@ -70,9 +80,9 @@ const ModalComponent = ({ title, description, callback, inputField }) => {
           <label>
             <input data-testid="modal-input"
               type="text"
-              value={inputValue} // Use the local state value
+              value={inputValue}
               placeholder={inputField.placeholder}
-              onChange={handleInputChange} // Use the new handler
+              onChange={handleInputChange}
             />
           </label>
         )}

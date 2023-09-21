@@ -7,6 +7,43 @@ import GetIcon from './assets/get-icon.svg';
 import WalletIcon from './assets/wallet-icon.svg';
 import InfoIcon from './assets/info-icon.svg';
 import { ModalContext } from './ModalDialog';
+import { useWallet, useAllWallets } from 'useink';  // Import the required hooks
+import { NotificationContext, NotificationProvider } from './NotificationContext';  // Import NotificationContext
+
+export const ConnectWallet = ({ onClose }) => {
+  const { account, connect, disconnect } = useWallet()
+  const wallets = useAllWallets();
+
+  if (!account) {
+    return (
+      <ul>
+        {wallets.map((w) => (
+          <li key={w.title}>
+            {w.installed ? (
+              <button onClick={() => connect(w.extensionName)}>
+                <img src={w.logo.src} alt={w.logo.alt} />
+                Connect to {w.title}
+              </button>
+            ) : (
+              <a href={w.installUrl}>
+                <img src={w.logo.src} alt={w.logo.alt} />
+                Install {w.title}
+              </a>
+            )}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  return (
+    <>
+      <p>You are connected as {account?.name || account.address}</p>
+      <button onClick={disconnect}>Disconnect Wallet</button>
+      <button onClick={onClose}>Close</button>
+    </>
+  )
+}
 
 const Dialogs = {
   GetScene: 'GetScene',
@@ -18,6 +55,7 @@ const Dialogs = {
 const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
   console.log('GalaxyUI', macros);
   const { showModal, closeModal } = useContext(ModalContext);
+  const { showNotification } = useContext(NotificationContext);  // Use NotificationContext
 
   const { accounts, enableExtension } = usePolkadotExtension();
   const { data, loadScene, saveScene } = useIPFSClient();
@@ -33,12 +71,19 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
   // State to track the selected F key
   const [selectedFKey, setSelectedFKey] = useState('');
 
+  const { account, connect, disconnect } = useWallet();
+  const wallets = useAllWallets();
+
   useEffect(() => {
     window.showModal = showModal;
+
+    window.wallets = wallets;
+    window.connect = connect;
 
     return () => {
       window.showModal = null;
     }
+
   }, []);
 
 
@@ -69,14 +114,14 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
   const closeDialog = () => {
     setCurrentDialog(null);
   };
-
-  const showNotification = (message) => {
-    setNotifications((prevNotifications) => [...prevNotifications, message]);
-    setTimeout(() => {
-      setNotifications((prevNotifications) => prevNotifications.slice(1));
-    }, 5000);
-  };
-
+  /*
+    const showNotification = (message) => {
+      setNotifications((prevNotifications) => [...prevNotifications, message]);
+      setTimeout(() => {
+        setNotifications((prevNotifications) => prevNotifications.slice(1));
+      }, 5000);
+    };
+  */
   const showError = (message) => {
     setErrors((prevErrors) => [...prevErrors, message]);
     setTimeout(() => {
@@ -122,18 +167,89 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
     }
   }, [data]);
 
-  const handleConnectWallet = async () => {
-    showNotification("Connecting wallet...");
-    const [error, accounts] = await enableExtension();
+  const handleConnectWallet = () => {
+    const installedWallets = Object.keys(window.injectedWeb3);
 
-    if (accounts && accounts[0]) {
-      const walletName = accounts[0].meta ? accounts[0].meta.name : accounts[0].address;
-      showNotification("Wallet connected: " + walletName);
-    } else {
-      showError("Connection failed: " + error);
+    if (installedWallets.length === 0) {
+      // Show modal message with instructions to install the first wallet from the list
+      showModal({
+        title: "Install Wallet",
+        description: wallets[0].noInstalledMessage,
+        callback: () => { }
+      });
+    } else if (installedWallets.length === 1) {
+      // Skip selecting wallet, just do connect
+      const singleInstalledWallet = wallets.find(wallet => wallet.extensionName === installedWallets[0]);
+
+      if (singleInstalledWallet) {
+        showNotification({
+          type: "info",
+          message: `Connecting to ${singleInstalledWallet.title}...`
+        });
+
+        connect(singleInstalledWallet.extensionName)
+          // .then(() => {
+          //   showNotification({
+          //     type: "success",
+          //     message: "Successfully connected to the wallet."
+          //   });
+          // })
+          // .catch((error) => {
+          //   showNotification({
+          //     type: "error",
+          //     message: `Failed to connect to the wallet: ${error.message}`
+          //   });
+          // });
+      } else {
+        showNotification({
+          type: "error",
+          message: "Installed wallet is not supported."
+        });
+      }
+
+    } else { // For multiple installed wallets
+      const walletList = wallets.map((wallet, index) => `${index + 1}. ${wallet.title}`).join('\n');
+
+      showModal({
+        title: "Connect to Wallet",
+        description: "Select a wallet by mentioning its number:",
+        callback: (userInput) => {
+          const selectedWalletIndex = parseInt(userInput, 10) - 1;
+
+          if (wallets[selectedWalletIndex]) {
+            showNotification({
+              type: "info",
+              message: `Connecting to ${wallets[selectedWalletIndex].title}...`
+            });
+
+            connect(wallets[selectedWalletIndex].extensionName)
+              .then(() => {
+                showNotification({
+                  type: "success",
+                  message: "Successfully connected to the wallet."
+                });
+              })
+              .catch((error) => {
+                showNotification({
+                  type: "error",
+                  message: `Failed to connect to the wallet: ${error.message}`
+                });
+              });
+          } else {
+            showNotification({
+              type: "error",
+              message: "Invalid wallet selection. Please try again."
+            });
+          }
+        },
+        // Adding the inputField for user input in modal
+        inputField: {
+          value: '',  // initial value
+          placeholder: walletList,  // showing list as placeholder
+        }
+      });
     }
-    closeDialog();
-  }
+  };
 
   const handleLoadFromIPFS = async () => {
     if (sceneHash) {
@@ -246,6 +362,7 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
       )}
       {!accounts && (
         <button data-test="walletButton" className={styles.customButton} onClick={() => {
+          // return handleConnectWallet();
           showModal({
             title: "Connect Wallet",
             description: "Please connect your Polkadot wallet to save and share scenes.",
@@ -291,27 +408,6 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
         </div>
       </div>
     )}
-
-    <div
-      className={styles.bottomRight}
-    >
-      {notifications.map((notification, index) => (
-        <div
-          key={index}
-          className={styles.notification}
-        >
-          {notification}
-        </div>
-      ))}
-      {errors.map((error, index) => (
-        <div
-          key={index}
-          className={styles.error}
-        >
-          {error}
-        </div>
-      ))}
-    </div>
 
     <div className={styles.bottomCenter}>
       {macros && Array.from(macros.entries()).map(([macroName, macroList]) => {
