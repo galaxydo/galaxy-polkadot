@@ -7,8 +7,16 @@ import GetIcon from './assets/get-icon.svg';
 import WalletIcon from './assets/wallet-icon.svg';
 import InfoIcon from './assets/info-icon.svg';
 import { ModalContext } from './ModalDialog';
-import { useWallet, useAllWallets } from 'useink';  // Import the required hooks
+import { useWallet, useAllWallets, useChain } from 'useink';  // Import the required hooks
 import { NotificationContext, NotificationProvider } from './NotificationContext';  // Import NotificationContext
+import { useTx, useContract } from 'useink';
+import { pickDecoded, shouldDisable } from 'useink/utils';
+import metadata from './metadata.json';
+
+import { Abi, ContractPromise } from 'useink/core';
+import { useApi } from 'useink';
+import { ChainId } from 'useink/chains';
+import useInteractWithContract from './hooks/useInteractWithContract';
 
 export const ConnectWallet = ({ onClose }) => {
   const { account, connect, disconnect } = useWallet()
@@ -74,11 +82,27 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
   const { account, connect, disconnect } = useWallet();
   const wallets = useAllWallets();
 
+  const chainConfig = useChain();
+
+  const { read, write } = useInteractWithContract();
+
   useEffect(() => {
     window.showModal = showModal;
 
     window.wallets = wallets;
     window.connect = connect;
+
+    window.showNotification = showNotification;
+
+    window.ipfs = {
+      upload: saveScene,
+      download: loadScene,
+    }
+
+    window.contracts = {
+      read: read,
+      write: write,
+    }
 
     return () => {
       window.showModal = null;
@@ -188,18 +212,18 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
         });
 
         connect(singleInstalledWallet.extensionName)
-          // .then(() => {
-          //   showNotification({
-          //     type: "success",
-          //     message: "Successfully connected to the wallet."
-          //   });
-          // })
-          // .catch((error) => {
-          //   showNotification({
-          //     type: "error",
-          //     message: `Failed to connect to the wallet: ${error.message}`
-          //   });
-          // });
+        // .then(() => {
+        //   showNotification({
+        //     type: "success",
+        //     message: "Successfully connected to the wallet."
+        //   });
+        // })
+        // .catch((error) => {
+        //   showNotification({
+        //     type: "error",
+        //     message: `Failed to connect to the wallet: ${error.message}`
+        //   });
+        // });
       } else {
         showNotification({
           type: "error",

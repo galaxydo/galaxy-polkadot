@@ -294,7 +294,11 @@ export default function App() {
         })
         console.log('!', 'els-after', JSON.stringify(ea.getSceneElements().map(it => it.id)));
       } catch (err) {
-        console.error('!', 'App', macroName, err.toString());
+        console.error('!', 'App macro error', macroName, err.toString());
+        window.showNotification({
+          type: 'error',
+          message: err.toString(),
+        })
       }
     }
   }

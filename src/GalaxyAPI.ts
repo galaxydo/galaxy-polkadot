@@ -165,9 +165,26 @@ class GalaxyAPI {
           try {
             if (!sceneName) throw "Scene name not provided.";
 
+            const frameId = input.frameId;
+
+            const scene = {
+              elements: window.ea.getSceneElements().filter(it => it.frameId == frameId),
+              files: window.ea.getFiles(),
+            }
+
+            const escapedSceneName = sceneName.replace(/'/g, "\\'");
+            const escapedSceneJSON = JSON.stringify(scene).replace(/'/g, "\\'");
+
             const denoScript = `
-            Deno.KV.put('${sceneName}', '${JSON.stringify(input)}');
-          `;
+  import { set } from "https://deno.land/x/kv-tools/blob.ts";
+ 
+  const kv = await Deno.openKv();
+  const blob = new TextEncoder().encode("${escapedSceneJSON}");
+  await set(kv, ["layers", "${escapedSceneName}"], blob);
+  await kv.close();
+
+    // Deno.KV.put('${escapedSceneName}', '${escapedSceneJSON}');
+`;
 
             const denoResult = await window.webui.executeDeno(denoScript);
             if (!denoResult.success) throw "Error executing Deno script.";
@@ -197,66 +214,81 @@ class GalaxyAPI {
       }
     });
   }
-
   private async defaultPublishMacro(input: ExcalidrawElement): Promise<ExcalidrawElement[]> {
     return new Promise(async (resolve, reject) => {
-      try {
-        let layerName = '';
+      let layerName = '';
+      const frameId = input.id;
 
-        const handlePublishToGalaxy = async () => {
-          try {
-            if (!layerName) {
-              throw "Layer name not provided.";
-            }
-
-            const ipfsLink = await window.ipfs.upload([input]);
-
-            // Inline write to smart contract
-            if (!window.contracts || !window.contracts.write) {
-              throw new Error("Smart contract write function is not available.");
-            }
-
-            const args = [layerName, ipfsLink];
-            const transactionId = await window.contracts.write({
-              address: '0x1', // Replace with your contract address
-              method: 'saveLayer', // Replace with your contract method
-              args,
-            });
-
-            window.showNotification(`${transactionId} broadcasted`);
-
-            const result = `${layerName} - ${ipfsLink}`;
-
-            resolve(result);
-          } catch (error) {
-            this.log(`Error during publishing: ${error}`, "defaultPublishMacro");
-            return reject(error);
+      const handlePublishToGalaxy = async () => {
+        try {
+          if (!layerName) {
+            throw "Layer name not provided.";
           }
-        };
 
-        await window.showModal({
-          title: "Publish to Galaxy",
-          callback: handlePublishToGalaxy,
-          inputField:
-          {
-            label: "Layer Name",
-            value: layerName,
-            placeholder: "Enter Layer Name",
-            onChange: (e) => {
-              console.log('! onChange', e.target.value);
-              layerName = e.target.value;
+          const scene = {
+            elements: window.ea.getSceneElements().filter(it => it.frameId == frameId),
+            files: window.ea.getFiles(),
+          };
+
+          const [error, ipfsLink] = await window.ipfs.upload(scene);
+
+          if (error) {
+            console.log('GalaxyAPI', 'ipfs error', error);
+            throw new Error(error);
+          }
+
+          if (!window.contracts || !window.contracts.write) {
+            throw new Error("Smart contract write function is not available.");
+          }
+
+          const args = [layerName, ipfsLink];
+          console.log('GalaxyAPI', 'args', args);
+
+          const metadata = await fetch('https://raw.githubusercontent.com/7flash/galaxy-assets-sep16/main/galaxy.json')
+            .then(it => it.json());
+
+          console.log('GalaxyAPi', 'metadata', metadata);
+
+          const { gasRequired, continueWithTransaction, caller } = await window.contracts.write({
+            address: '5E1G1rQ2p6dXxE9jHrvidVGm7gzzAbV9awJrCoqH3oGBxXZK',
+            method: 'flip',
+            args: [],
+            metadata,
+          });
+
+          window.showModal({
+            title: "Confirm Transaction",
+            description: `Gas Cost: ${gasRequired}\nIPFS Link: ${ipfsLink}\nLayer Name: ${layerName}`,
+            callback: async () => {
+              const transactionId = await continueWithTransaction();
+              console.log('GalaxyAPI', 'transactionId', transactionId);
+              window.showNotification({ message: `${transactionId} broadcasted`, type: 'success' });
+              const galaxyLink = `galaxy://${caller}/${layerName}`;
+              resolve(galaxyLink);
             }
-          },
-          
-        });
-      } catch (error) {
-        this.log(`Error in defaultPublishMacro: ${error}`, "defaultPublishMacro");
-        reject(error);
-      }
+          });
+        } catch (error) {
+          this.log(`Error during publishing: ${error}`, "defaultPublishMacro");
+          reject(error);
+        }
+      };
+
+      await window.showModal({
+        title: "Publish to Galaxy",
+        message: "Please provide a layer name to publish to the Galaxy.",
+        inputField: {
+          label: "Layer Name",
+          value: layerName,
+          placeholder: "Enter Layer Name",
+          onChange: (e) => {
+            console.log('! onChange', e.target.value);
+            layerName = e.target.value;
+          }
+        },
+        callback: handlePublishToGalaxy
+      });
     });
   }
-
-
 
   private async defaultOpenMacro(input: ExcalidrawElement): Promise<ExcalidrawElement[]> {
     this.log(`Input received: ${JSON.stringify(input)}`, "defaultOpenMacro");
@@ -274,11 +306,33 @@ class GalaxyAPI {
           try {
             if (!link) throw "Galaxy link not provided.";
 
-            // Resolve galaxyLink to IPFS link
-            const ipfsLink = await this.resolveGalaxyLinkToIPFS(link);
+            let scene;
+
+            if (link.startsWith('ipfs://') || link.startsWith('galaxy://')) {
+
+              // Resolve galaxyLink to IPFS link
+              const ipfsLink = await this.resolveGalaxyLinkToIPFS(link);
+              console.log('! open', ipfsLink);
+
+              scene =
+                await this.downloadFromIPFS(ipfsLink);
+            } else {
+              const denoScript = `
+                 import { get } from "https://deno.land/x/kv-tools/blob.ts";
+ 
+  const kv = await Deno.openKv();
+  const ab = await get(kv, ["layers", "${link}"]);
+  await kv.close();
+`
+
+              const denoResult = await window.webui.executeDeno(denoScript);
+              if (!denoResult.success) throw "Error executing Deno script.";
+              scene = denoResult.data;
+            }
+            console.log('! scene', JSON.stringify(scene));
 
             // Download content from IPFS
-            const newElements = window.convertToExcalidrawElements(await this.downloadFromIPFS(ipfsLink));
+            const newElements = window.convertToExcalidrawElements(scene);
             const x = Math.min(...newElements.map(it => it.x));
             const y = Math.min(...newElements.map(it => it.y));
             const width = Math.max(...newElements.map(it => it.x)) - x;
@@ -318,7 +372,8 @@ class GalaxyAPI {
   private async resolveGalaxyLinkToIPFS(galaxyLink: string): Promise<string> {
     // Use window.wallet.readContract to resolve the galaxyLink.
     // The specific parameters may need to be adjusted based on the exact contract and method names.
-    return window.wallet.readContract('yourContractName', 'yourMethodName', galaxyLink);
+    if (!galaxyLink.startsWith('galaxy://')) return galaxyLink;
+    return window.contracts.read('yourContractName', 'yourMethodName', galaxyLink);
   }
 
   // This method will attempt to download content from the provided IPFS link.
@@ -328,7 +383,7 @@ class GalaxyAPI {
   }
 
   private log(message: string, method: string) {
-    const formattedMessage = `[GalaxyAPI::${method}] - ${message} [${new Date().toISOString()}]`;
+    const formattedMessage = `[GalaxyAPI:: ${method}]- ${message}[${new Date().toISOString()}]`;
     console.log(formattedMessage);
   }
 }
