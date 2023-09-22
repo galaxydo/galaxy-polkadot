@@ -1,3 +1,6 @@
 [submodule "contract"]
 	path = contract
 	url = git@github.com:7flash/galaxy-polkadot-contract.git
+[submodule "desktop"]
+	path = desktop
+	url = git@github.com:7flash/galaxy-desktop-app.git
