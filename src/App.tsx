@@ -4,7 +4,7 @@ import { useRef, useEffect, useState, useMemo } from "react";
 import { Excalidraw, convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import GalaxyUI from "./GalaxyUI";
 import GalaxyAPI from "./GalaxyAPI";
-import { BinaryFileData, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
+import { AppState, BinaryFileData, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
 import { ExcalidrawElement, ExcalidrawFrameElement, ExcalidrawTextElement, NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
 import throttle from "lodash.throttle";
 import debounce from "lodash.debounce";
@@ -65,13 +65,14 @@ export default function App() {
   const excalidrawRef = useRef<ExcalidrawImperativeAPI>(null);
 
   const useInkConfig = {
-    dappName: 'Flipper',  // The name displayed to the user when connecting their wallet.
-    chains: [RococoContractsTestnet, ShibuyaTestnet]  // Chains that our dapp will support.
+    dappName: 'Galaxy',
+    chains: [RococoContractsTestnet]
   };
-
 
   useEffect(() => {
     console.log('window.excalidraw', excalidrawRef.current);
+
+    window.walletName = Object.keys(window.injectedWeb3)[0];
 
     if (excalidrawRef.current) {
       const ea = excalidrawRef.current!;
@@ -138,12 +139,13 @@ export default function App() {
   }
 
   const onPointerUpdate = debounce(() => {
-    console.log(new Date());
-
     const ea = excalidrawRef?.current;
     if (!ea) return;
 
+    console.log(new Date(), ea.getSceneElements());
+
     const elIds = ea.getAppState().selectedElementIds;
+
     if (!elIds) return;
 
     const selectedEls = ea.getSceneElements().filter(it => elIds[it.id] == true);
@@ -243,8 +245,8 @@ export default function App() {
         }
         console.log('!', 'updatedEl', updatedEl)
         console.log('!', 'els-before', JSON.stringify(ea.getSceneElements().map(it => it.id)));
-        ea.updateScene({
-          elements: ea.getSceneElements().map(it => {
+        const elements =
+          ea.getSceneElements().map(it => {
             if (it.id === outputEl.id) {
               console.log('!', 'update-from', JSON.stringify(it));
               if (updatedEl instanceof Array) {
@@ -290,8 +292,19 @@ export default function App() {
               return [...prev, ...curr];
             }
             return [...prev, curr];
-          }, [])
-        })
+          }, []);
+        setTimeout(() => {
+          // when we open frame it disappears some times ?!
+          ea.updateScene({
+            elements: elements
+          });
+          // if (ea.getSceneElements().length == 0) {
+          //   debugger;
+          //   ea.updateScene({
+          //     elements,
+          //   })
+          // }
+        }, 100);
         console.log('!', 'els-after', JSON.stringify(ea.getSceneElements().map(it => it.id)));
       } catch (err) {
         console.error('!', 'App macro error', macroName, err.toString());

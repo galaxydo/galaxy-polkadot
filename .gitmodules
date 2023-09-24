@@ -4,3 +4,6 @@
 [submodule "desktop"]
 	path = desktop
 	url = git@github.com:7flash/galaxy-desktop-app.git
+[submodule "excalidraw"]
+	path = excalidraw
+	url = git@github.com:7flash/galaxydraw.git

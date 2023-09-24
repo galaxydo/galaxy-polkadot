@@ -1,29 +1,49 @@
 import { ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
+import { nanoid } from "nanoid";
 
 type MacroFunction = (
   input: ExcalidrawElement,
 ) => Promise<ExcalidrawElement[]>;
 
+// export class MacroRegistry {
+//   registerMacro(name, fn) {
+//     this.macros[name] = fn.bind(window.engine);
+//   }
+// }
+
+// export class MacroEngine {
+//   constructor ({ wallet, contracts, etc }) {
+//     this.wallet = wallet;
+//   }
+// }
+
 class GalaxyAPI {
   private macros: Record<string, MacroFunction>;
+
+  private galaxyContract: string;
+  private galaxyMetadata: string;
 
   constructor() {
     this.macros = {};
     this.log("Initialized.", "constructor");
 
     // Register default macros
-    this.registerMacro("js", this.defaultJsMacro.bind(this));
-    this.registerMacro("python", this.defaultPythonMacro.bind(this));
-    this.registerMacro("Deno", this.defaultDenoMacro.bind(this));
-    this.registerMacro("save", this.defaultSaveMacro.bind(this));
-    this.registerMacro("open", this.defaultOpenMacro.bind(this));
-    this.registerMacro("publish", this.defaultPublishMacro.bind(this));
 
+    // todo: should read them locally or from remote repo
+    this.registerMacro("js", this.defaultJsMacro);
+    this.registerMacro("python", this.defaultPythonMacro);
+    this.registerMacro("Deno", this.defaultDenoMacro);
+    this.registerMacro("save", this.defaultSaveMacro);
+    this.registerMacro("open", this.defaultOpenMacro);
+    this.registerMacro("publish", this.defaultPublishMacro);
+
+    this.galaxyContract = '5E1zfVZmokEX29W9xVzMYJAzvwnXWE7AVcP3d1rXzWhC4sxi';
+    this.galaxyMetadata = 'https://raw.githubusercontent.com/7flash/galaxy-polkadot-contract/main/galaxy.json';
   }
 
   registerMacro(name: string, fn: MacroFunction): void {
-    this.macros[name.toLowerCase()] = fn;
+    this.macros[name.toLowerCase()] = fn.bind(this);
     this.log(`Macro "${name}" registered.`, "registerMacro");
   }
 
@@ -68,8 +88,6 @@ class GalaxyAPI {
     }
   }
 
-
-
   private defaultDenoMacro(input: ExcalidrawElement): ExcalidrawElement[] {
     this.log(`Input received: ${JSON.stringify(input)}`, "defaultDenoMacro");
     try {
@@ -84,7 +102,7 @@ class GalaxyAPI {
           code: `(${macroSource})`,
           input: inputElement
         }));
-        console.log('response', response);
+        this.log('response ' + response, 'w');
         if (response.success) {
           return response.data;
         } else {
@@ -197,7 +215,6 @@ class GalaxyAPI {
           }
         };
 
-        this.log('showModal', 'defaultSaveMacro');
         // Show modal to get the layer (scene) name
         await window.showModal({
           title: "Save scene",
@@ -215,6 +232,8 @@ class GalaxyAPI {
     });
   }
   private async defaultPublishMacro(input: ExcalidrawElement): Promise<ExcalidrawElement[]> {
+    const galaxyContractAddress = this.galaxyContract;
+
     return new Promise(async (resolve, reject) => {
       let layerName = '';
       const frameId = input.id;
@@ -226,14 +245,19 @@ class GalaxyAPI {
           }
 
           const scene = {
-            elements: window.ea.getSceneElements().filter(it => it.frameId == frameId),
+            elements: window.ea.getSceneElements().filter(it => it.frameId == frameId).map(it => {
+              return {
+                ...it,
+                id: null,
+              }
+            }),
             files: window.ea.getFiles(),
           };
 
           const [error, ipfsLink] = await window.ipfs.upload(scene);
 
           if (error) {
-            console.log('GalaxyAPI', 'ipfs error', error);
+            this.log('ipfs error' + error, 'handlePublish');
             throw new Error(error);
           }
 
@@ -242,17 +266,21 @@ class GalaxyAPI {
           }
 
           const args = [layerName, ipfsLink];
-          console.log('GalaxyAPI', 'args', args);
+          this.log('args ' + args, 'handlePublish');
 
-          const metadata = await fetch('https://raw.githubusercontent.com/7flash/galaxy-assets-sep16/main/galaxy.json')
-            .then(it => it.json());
+          if (!window.galaxyMetadata) {
+            window.galaxyMetadata = await fetch(this.galaxyMetadata)
+              .then(it => it.json());
+          }
 
-          console.log('GalaxyAPi', 'metadata', metadata);
+          const metadata = window.galaxyMetadata;
+
+          this.log('metadata' + metadata, 'handlePublish');
 
           const { gasRequired, continueWithTransaction, caller } = await window.contracts.write({
-            address: '5E1G1rQ2p6dXxE9jHrvidVGm7gzzAbV9awJrCoqH3oGBxXZK',
-            method: 'flip',
-            args: [],
+            address: galaxyContractAddress,
+            method: 'createLayer',
+            args,
             metadata,
           });
 
@@ -260,11 +288,23 @@ class GalaxyAPI {
             title: "Confirm Transaction",
             description: `Gas Cost: ${gasRequired}\nIPFS Link: ${ipfsLink}\nLayer Name: ${layerName}`,
             callback: async () => {
-              const transactionId = await continueWithTransaction();
-              console.log('GalaxyAPI', 'transactionId', transactionId);
-              window.showNotification({ message: `${transactionId} broadcasted`, type: 'success' });
-              const galaxyLink = `galaxy://${caller}/${layerName}`;
-              resolve(galaxyLink);
+              await continueWithTransaction({
+                onSuccess: (trxId) => {
+                  window.showNotification({ message: `${trxId} transaction`, type: 'info' });
+                  const galaxyLink = `galaxy://${caller}/${layerName}`;
+                  window.showModal({
+                    title: galaxyLink,
+                    description: 'Transaction ID ' + trxId,
+                  })
+                  return resolve(galaxyLink);
+                },
+                onStatus: (status) => {
+                  window.showNotification({ message: `${status} transaction`, type: 'info' });
+                  window.showModal({
+                    title: 'Transaction Status ' + status,
+                  })
+                },
+              });
             }
           });
         } catch (error) {
@@ -273,25 +313,34 @@ class GalaxyAPI {
         }
       };
 
-      await window.showModal({
-        title: "Publish to Galaxy",
-        message: "Please provide a layer name to publish to the Galaxy.",
-        inputField: {
-          label: "Layer Name",
-          value: layerName,
-          placeholder: "Enter Layer Name",
-          onChange: (e) => {
-            console.log('! onChange', e.target.value);
-            layerName = e.target.value;
-          }
-        },
-        callback: handlePublishToGalaxy
-      });
+      window.showModal({
+        title: "Connect Wallet",
+        description: `Click Confirm to invoke ${window.walletName} wallet extension`,
+        callback: async () => {
+          await window.connect();
+          window.showModal({
+            title: "Publish to Galaxy",
+            message: "Please provide a layer name to publish to the Galaxy.",
+            inputField: {
+              label: "Layer Name",
+              value: layerName,
+              placeholder: "Enter Layer Name",
+              onChange: (e) => {
+                layerName = e.target.value;
+              }
+            },
+            callback: handlePublishToGalaxy
+          });
+        }
+      })
     });
   }
 
   private async defaultOpenMacro(input: ExcalidrawElement): Promise<ExcalidrawElement[]> {
     this.log(`Input received: ${JSON.stringify(input)}`, "defaultOpenMacro");
+
+    const galaxyContract = this.galaxyContract;
+    const galaxyMetadata = this.galaxyMetadata;
 
     return new Promise(async (resolve, reject) => {
       try {
@@ -306,16 +355,39 @@ class GalaxyAPI {
           try {
             if (!link) throw "Galaxy link not provided.";
 
+            this.log('! link 1 ' + link, 'open');
+
             let scene;
 
             if (link.startsWith('ipfs://') || link.startsWith('galaxy://')) {
 
               // Resolve galaxyLink to IPFS link
-              const ipfsLink = await this.resolveGalaxyLinkToIPFS(link);
-              console.log('! open', ipfsLink);
+              if (link.startsWith('galaxy://')) {
+                if (!window.galaxyMetadata) {
+                  window.galaxyMetadata = await fetch(this.galaxyMetadata)
+                    .then(it => it.json());
+                }
 
+                const metadata = window.galaxyMetadata;
+
+                const [user, name] = link.replace('galaxy://', '').split('/');
+                const result = await window.contracts.read({
+                  address: galaxyContract,
+                  method: 'resolveLink',
+                  args: [user, name],
+                  metadata,
+                  options: {
+                    defaultCaller: '5ERMmhn6tWtbSX6HspQcztkHbpaYKiZHfiouDBDXgSnMhxU6'
+                  }
+                });
+                link = result.value.decoded.Ok
+                this.log('! link 2', link);
+              }
               scene =
-                await this.downloadFromIPFS(ipfsLink);
+                await window.ipfs.download(link);
+
+              this.log('scene ' + scene, 'remote');
+
             } else {
               const denoScript = `
                  import { get } from "https://deno.land/x/kv-tools/blob.ts";
@@ -328,23 +400,64 @@ class GalaxyAPI {
               const denoResult = await window.webui.executeDeno(denoScript);
               if (!denoResult.success) throw "Error executing Deno script.";
               scene = denoResult.data;
-            }
-            console.log('! scene', JSON.stringify(scene));
 
-            // Download content from IPFS
-            const newElements = window.convertToExcalidrawElements(scene);
-            const x = Math.min(...newElements.map(it => it.x));
-            const y = Math.min(...newElements.map(it => it.y));
-            const width = Math.max(...newElements.map(it => it.x)) - x;
-            const height = Math.max(...newElements.map(it => it.y)) - y;
-            resolve([
-              ...newElements,
+              this.log('! scene' + scene, 'local');
+            }
+
+
+            // Assuming `input` represents the user-defined frame.
+            // `newElements` represent the elements with their own dimensions and coordinates.
+
+            // Convert elements to Excalidraw compatible format
+            const newElements = window.convertToExcalidrawElements(scene.elements);
+
+            // Extracting the x, y coordinates from the user-defined frame
+            const frameX = input.x;
+            const frameY = input.y;
+
+            // Find the bounding box of the newElements
+            let minX = Math.min(...newElements.map(it => it.x));
+            let minY = Math.min(...newElements.map(it => it.y));
+            let maxX = Math.max(...newElements.map(it => it.x + it.width));
+            let maxY = Math.max(...newElements.map(it => it.y + it.height));
+
+            // Calculating the dimensions of the bounding box
+            let elementsWidth = maxX - minX;
+            let elementsHeight = maxY - minY;
+
+            // Adjusting the frame width and height to accommodate the elements if necessary
+            let frameWidth = Math.max(elementsWidth, input.width);
+            let frameHeight = Math.max(elementsHeight, input.height);
+
+            // Calculating the offsets to adjust the position of elements to the top-left of the frame
+            let offsetX = frameX - minX;
+            let offsetY = frameY - minY;
+
+            // Creating new adjusted elements
+            const adjustedElements = newElements.map(it => ({
+              ...it,
+              id: nanoid(),
+              x: it.x + offsetX,
+              y: it.y + offsetY,
+            }));
+
+            // Including the user-defined frame with potentially adjusted width and height
+            const resultElements = [
+              ...adjustedElements,
               {
                 ...input,
-                name: `frame ${link}`,
-                x, y, width, height
+                name: `${link}`,
+                x: frameX,
+                y: frameY,
+                width: frameWidth,
+                height: frameHeight
               }
-            ]); // Resolving the promise here
+            ];
+
+            // If this is in a Promise, resolving it with resultElements
+            resolve(resultElements);
+
+            // Handle error as per your original script if necessary
           } catch (error) {
             this.log(`Error during opening: ${error}`, "defaultOpenMacro");
             reject(error); // Rejecting the promise in case of an error
@@ -367,19 +480,6 @@ class GalaxyAPI {
         reject(error); // Rejecting the promise in case of an error
       }
     });
-  }
-  // This method will attempt to resolve the provided galaxyLink into its corresponding IPFS link.
-  private async resolveGalaxyLinkToIPFS(galaxyLink: string): Promise<string> {
-    // Use window.wallet.readContract to resolve the galaxyLink.
-    // The specific parameters may need to be adjusted based on the exact contract and method names.
-    if (!galaxyLink.startsWith('galaxy://')) return galaxyLink;
-    return window.contracts.read('yourContractName', 'yourMethodName', galaxyLink);
-  }
-
-  // This method will attempt to download content from the provided IPFS link.
-  private async downloadFromIPFS(ipfsLink: string): Promise<ExcalidrawElement[]> {
-    const result = await window.ipfs.download(ipfsLink);
-    return convertToExcalidrawElements(result.elements);
   }
 
   private log(message: string, method: string) {

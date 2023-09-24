@@ -61,7 +61,7 @@ const Dialogs = {
 };
 
 const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
-  console.log('GalaxyUI', macros);
+  // console.log('GalaxyUI', macros);
   const { showModal, closeModal } = useContext(ModalContext);
   const { showNotification } = useContext(NotificationContext);  // Use NotificationContext
 
@@ -86,11 +86,30 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
 
   const { read, write } = useInteractWithContract();
 
+  // const [isConnected, setConnected] = useState(!!account?.address);
+
+  useEffect(() => {
+    window.account = account;
+  }, [account]);
+
   useEffect(() => {
     window.showModal = showModal;
 
     window.wallets = wallets;
-    window.connect = connect;
+    window.connect = () => new Promise((resolve) => {
+      if (window.account?.address) {
+        return resolve(window?.account.address);
+      }
+
+      const it = setInterval(() => {
+        if (window.account?.address) {
+          resolve(window?.account.address);
+          return clearInterval(it);
+        }
+      }, 700);
+
+      connect(window.walletName);
+    });
 
     window.showNotification = showNotification;
 

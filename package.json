@@ -10,8 +10,8 @@
     "test": "jest"
   },
   "dependencies": {
-    "@excalidraw/excalidraw": "npm:@galaxydo/excalidraw@0.15.2-aug28-second",
-    "@galaxydo/excalidraw": "0.15.2-19.14",
+    "@excalidraw/excalidraw": "npm:@galaxydo/excalidraw@0.15.2-sep20",
+    "@galaxydo/excalidraw": "0.15.2-sep20",
     "@galaxydo/excalidraw-utils": "0.1.2-23.8.18",
     "@polkadot/api": "^10.5.1",
     "@polkadot/extension-dapp": "^0.46.1",
@@ -21,9 +21,11 @@
     "lodash.debounce": "^4.0.8",
     "lodash.throttle": "^4.1.1",
     "million": "^2.3.0",
+    "nanoid": "^5.0.1",
     "puppeteer": "^19.11.1",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "useink": "^1.14.1"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.22.10",

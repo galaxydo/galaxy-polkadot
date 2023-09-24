@@ -7,12 +7,12 @@ import { call } from 'useink/core';
 import { toContractOptions } from 'useink/core';
 
 function useInteractWithContract() {
-  const { account } = useWallet();
+  const { account, connect } = useWallet();
   const chainConfig = useChain('rococo-contracts-testnet');
-  console.log('chainConfig', chainConfig);
+  // console.log('chainConfig', chainConfig);
   const { api } = useApi(chainConfig?.id) || {};
 
-  console.log('Initializing useInteractWithContract...a', api);
+  // console.log('Initializing useInteractWithContract...a', api);
 
   const apiRef = useRef(api);
   apiRef.current = api;
@@ -21,7 +21,7 @@ function useInteractWithContract() {
   accountRef.current = account;
 
   useEffect(() => {
-    console.log("API changed:", api);
+    // console.log("API changed:", api);
   }, [api]);
 
   const getAbi = useCallback((metadata) => {
@@ -65,12 +65,12 @@ function useInteractWithContract() {
 
     const abi = getAbi(metadata);
     const chainContract = getChainContract(abi, address);
-    const abiMessage = getAbiMessage(chainContract?.contract, method);
+    const abiMessage = getAbiMessage(chainContract, method);
 
     const caller = account?.address
       ? account.address
       : options?.defaultCaller
-        ? useDefaultCaller(chainContract?.chainId)
+        ? options.defaultCaller
         : undefined;
 
     if (!abiMessage || !chainContract || !caller) {
@@ -80,7 +80,7 @@ function useInteractWithContract() {
 
     try {
       const callResult = await call(
-        chainContract.contract,
+        chainContract,
         abiMessage,
         caller,
         args,
@@ -104,19 +104,18 @@ function useInteractWithContract() {
     const chainContract = getChainContract(abi, address);
     const abiMessage = getAbiMessage(chainContract, method);
 
-    console.log('chainContract', chainContract, chainContract.contract);
-    console.log('account', account, accountRef.current);
+    console.log('! chainContract', chainContract, chainContract.contract);
+    console.log('! account', account, accountRef.current);
 
     if (!chainContract || !accountRef.current || !accountRef.current.wallet?.extension) {
+      // connect(window.walletName);
       throw new Error('Contract or wallet information missing.');
     }
 
     const caller = accountRef.current.address
       ? accountRef.current.address
-      : options?.defaultCaller
-        ? useDefaultCaller(chainContract?.chainId)
-        : undefined;
-
+      : null;
+    
     if (!caller || !chainContract || !abiMessage) {
       throw new Error('Dry run prerequisites not met.');
     }
@@ -138,7 +137,7 @@ function useInteractWithContract() {
     if (dryRunResult && dryRunResult.ok) {
       const { gasRequired } = dryRunResult.value;
 
-      const continueWithTransaction = async () => {
+      const continueWithTransaction = async ({ onSuccess, onStatus }) => {
         const tx = chainContract.tx[method];
         if (!tx) {
           throw new Error(`'${method}' not found on contract instance`);
@@ -155,12 +154,21 @@ function useInteractWithContract() {
               if (txResult && txResult.status && txResult.status.isFinalized) {
                 const txID = txResult.status.asFinalized.toString();
                 console.log(`Transaction ID: ${txID}`);
-                return txID;
+                if (typeof onSuccess == 'function') {
+                  onSuccess(txID);
+                }
               } else {
                 console.log('Transaction status', txResult.status.type);
+                if (typeof onStatus == 'function') {
+                  onStatus(txResult.status.type);
+                }
               }
             },
           );
+
+          console.log('! maybe txResult', txResult);
+
+          return txResult;
 
         } catch (error) {
           console.error(`Error executing transaction: ${error.message}`);
