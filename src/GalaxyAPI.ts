@@ -20,12 +20,14 @@ type MacroFunction = (
 
 class GalaxyAPI {
   private macros: Record<string, MacroFunction>;
+  private callbacks: Record<string, Function>;
 
   private galaxyContract: string;
   private galaxyMetadata: string;
 
   constructor() {
     this.macros = {};
+    this.callbacks = {};
     this.log("Initialized.", "constructor");
 
     // Register default macros
@@ -40,6 +42,16 @@ class GalaxyAPI {
 
     this.galaxyContract = '5E1zfVZmokEX29W9xVzMYJAzvwnXWE7AVcP3d1rXzWhC4sxi';
     this.galaxyMetadata = 'https://raw.githubusercontent.com/7flash/galaxy-polkadot-contract/main/galaxy.json';
+  }
+
+  registerCallback(taskId: string, fn: (denoResult: { success: boolean, data: string }) => void): void {
+    this.callbacks[taskId] = fn.bind(this);
+  }
+
+  executeCallback(taskId: string, denoResult: string): void {
+    if (typeof this.callbacks[taskId] == 'function') {
+      this.callbacks[taskId](denoResult);
+    }
   }
 
   registerMacro(name: string, fn: MacroFunction): void {
@@ -172,7 +184,25 @@ class GalaxyAPI {
     };
   }
 
-  private async defaultSaveMacro(input: ExcalidrawElement): Promise<ExcalidrawElement[]> {
+  private async executeDeno(code: string, input?: ExcalidrawElement) {
+    return new Promise(async (resolve, reject) => {
+      const taskId = nanoid();
+      this.registerCallback(taskId, (denoResult) => {
+        if (denoResult.success) {
+          return resolve(denoResult.data);
+        } else {
+          return reject(denoResult.error);
+        }
+      });
+      window.webui.call('executeDeno', JSON.stringify({
+        taskId,
+        code,
+        input: typeof input == 'object' ? input : {},
+      }));
+    });
+  }
+
+  async defaultSaveMacro(input: ExcalidrawElement): Promise<ExcalidrawElement[]> {
     this.log(`Input received: ${JSON.stringify(input)}`, "defaultSaveMacro");
     return new Promise(async (resolve, reject) => {
       try {
@@ -183,7 +213,7 @@ class GalaxyAPI {
           try {
             if (!sceneName) throw "Scene name not provided.";
 
-            const frameId = input.frameId;
+            const frameId = input.id;
 
             const scene = {
               elements: window.ea.getSceneElements().filter(it => it.frameId == frameId),
@@ -194,22 +224,34 @@ class GalaxyAPI {
             const escapedSceneJSON = JSON.stringify(scene).replace(/'/g, "\\'");
 
             const denoScript = `
-  import { set } from "https://deno.land/x/kv-tools/blob.ts";
- 
+        async function saveScene(input) {
+          const kvBlob = await import('https://deno.land/x/kv_toolbox/blob.ts');
   const kv = await Deno.openKv();
-  const blob = new TextEncoder().encode("${escapedSceneJSON}");
-  await set(kv, ["layers", "${escapedSceneName}"], blob);
+  const blob = new TextEncoder().encode('${escapedSceneJSON}');
+  await kvBlob.set(kv, ["layers", '${escapedSceneName}'], blob);
   await kv.close();
-
-    // Deno.KV.put('${escapedSceneName}', '${escapedSceneJSON}');
+  return blob.length;
+        }
 `;
 
-            const denoResult = await window.webui.executeDeno(denoScript);
-            if (!denoResult.success) throw "Error executing Deno script.";
+            try {
+              const result = await this.executeDeno(
+                denoScript,
+              );
 
-            // Create the updated element with the new text
-            const updatedText = `Frame ${input.id} saved as "${sceneName}" at ${new Date().toTimeString()}`;
-            return resolve(updatedText);
+              const updatedText = `${sceneName} (${result} bytes)`;
+              // const updatedText = `Frame ${input.id} saved as "${sceneName}" at ${new Date().toTimeString()}`;
+              return resolve(updatedText);
+            } catch (err) {
+              console.error(err);
+              return reject("Error executing saveScene. " + err?.toString());
+            }
+
+            // const denoResult = await window.webui.call('saveScene', JSON.stringify({
+            //   sceneName: escapedSceneName,
+            //   sceneData: escapedSceneJSON,
+            // }))
+
           } catch (error) {
             reject(`Error during saving: ${error}`);
           }
@@ -390,20 +432,29 @@ class GalaxyAPI {
 
             } else {
               const denoScript = `
-                 import { get } from "https://deno.land/x/kv-tools/blob.ts";
- 
+        async function openScene(input) {
+          const kvBlob = await import('https://deno.land/x/kv_toolbox/blob.ts');
+
   const kv = await Deno.openKv();
-  const ab = await get(kv, ["layers", "${link}"]);
+  const layerBinary = await kvBlob.get(kv, ["layers", "${link}"]);
   await kv.close();
-`
+              
+const layerStr = new TextDecoder().decode(layerBinary);
 
-              const denoResult = await window.webui.executeDeno(denoScript);
-              if (!denoResult.success) throw "Error executing Deno script.";
-              scene = denoResult.data;
+                return layerStr;
+        }
+`;
 
-              this.log('! scene' + scene, 'local');
+              try {
+                scene = await this.executeDeno(
+                  denoScript,
+                );
+                scene = JSON.parse(scene);
+              } catch (err) {
+                console.error(err);
+                return reject("Error executing openScene. " + err?.toString());
+              }
             }
-
 
             // Assuming `input` represents the user-defined frame.
             // `newElements` represent the elements with their own dimensions and coordinates.

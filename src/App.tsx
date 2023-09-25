@@ -1,4 +1,4 @@
-window.EXCALIDRAW_ASSET_PATH = "/";
+
 
 import { useRef, useEffect, useState, useMemo } from "react";
 import { Excalidraw, convertToExcalidrawElements } from "@excalidraw/excalidraw";

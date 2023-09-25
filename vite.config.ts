@@ -6,9 +6,9 @@ import million from "million/compiler";
 export default defineConfig({
   plugins: [react(), million.vite()],
   define: {
-    'process.env.VITE_PKG_NAME': '"second"', // JSON.stringify(process.env.VITE_PKG_NAME),
+    'process.env.VITE_PKG_NAME': '"galaxy"', // JSON.stringify(process.env.VITE_PKG_NAME),
     'process.env.VITE_PKG_VERSION': '"1.0"', // JSON.stringify(process.env.VITE_PKG_VERSION),
-    'window.EXCALIDRAW_ASSET_PATH': '"/dist/"'
+    'window.EXCALIDRAW_ASSET_PATH': '"/public/"'
   },
   /*  resolve: {
     alias: {
