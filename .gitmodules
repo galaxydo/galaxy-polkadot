@@ -7,3 +7,6 @@
 [submodule "excalidraw"]
 	path = excalidraw
 	url = git@github.com:7flash/galaxydraw.git
+[submodule "dist"]
+	path = dist
+	url = git@github.com:7flash/galaxy-dist.git
