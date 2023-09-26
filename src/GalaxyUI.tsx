@@ -340,117 +340,10 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
 
   return (<div>
     <div className={styles.topLeft}>
-      <button data-test="addButton" className={styles.customButton} onClick={() => {
-        showModal({
-          title: "Save scene",
-          callback: handleSaveToIPFS,
-          inputField: {
-            value: sceneName,
-            placeholder: "Scene Name",
-            onChange: (e) => setSceneName(e.target.value)
-          }
-        });
-      }}>
-        <img src={AddIcon} alt="Add" />
-      </button>
-      <button data-test="loadButton" className={styles.customButton} onClick={() => {
-        showModal({
-          title: "Load scene",
-          callback: handleLoadFromIPFS,
-          inputField: {
-            value: sceneHash,
-            placeholder: "Scene Hash",
-            onChange: (e) => setSceneHash(e.target.value)
-          }
-        });
-      }}>
-        <img src={GetIcon} alt="Get" />
-      </button>
     </div>
-
 
     <div className={styles.topRight}>
-      {accounts && (
-        <button data-test="infoButton" className={styles.customButton} onClick={() => {
-          const formatInfoDescription = () => {
-            let infoString = "";
-
-            if (accounts && accounts[0]) {
-              infoString += `Connected Wallet: ${accounts[0].meta?.name} - ${accounts[0]?.address}\n`;
-            }
-
-            if (sceneHash) {
-              infoString += `Scene Hash: ${sceneHash}\n`;
-            }
-
-            if (data && data.name) {
-              infoString += `Scene Name: ${data.name}\n`;
-            }
-
-            if (data && data.source) {
-              infoString += `Scene Author: ${data.source}\n`;
-            }
-
-            return infoString;
-          };
-
-          showModal({
-            title: "Scene Details",
-            description: formatInfoDescription(),
-            callback: () => { }  // If there's any logic to execute on Info confirmation
-          });
-        }}>
-          <img src={InfoIcon} alt="Info" />
-        </button>
-      )}
-      {!accounts && (
-        <button data-test="walletButton" className={styles.customButton} onClick={() => {
-          // return handleConnectWallet();
-          showModal({
-            title: "Connect Wallet",
-            description: "Please connect your Polkadot wallet to save and share scenes.",
-            callback: handleConnectWallet
-          });
-        }}>
-          <img src={WalletIcon} alt="Wallet" />
-        </button>
-      )}
     </div>
-
-    {currentDialog === Dialogs.Info && (
-      <div data-test="infoDialog" className={styles.dialogCentered}>
-        <h3>Scene Details</h3>
-        <div className={styles.dialogContent}>
-          {
-            accounts && accounts[0] && <>
-              <p>Connected Wallet:</p>
-              <p>{accounts[0].meta?.name} - {accounts[0]?.address}</p>
-            </>
-          }
-          {sceneHash && <>
-            <p>Scene Hash:</p>
-            <p data-test="ipfsHash">{sceneHash}</p>
-          </>}
-          {
-            data && data.name && (
-              <>
-                <p>Scene Name:</p>
-                <p>{data.name}</p>
-              </>
-            )
-          }
-          {data && data.source && (
-            <>
-              <p>Scene Author:</p>
-              <p>{data.source}</p>
-            </>
-          )}
-          <button data-test="closeButton" className={styles.customButton} onClick={closeDialog}>
-            Close
-          </button>
-        </div>
-      </div>
-    )}
 
     <div className={styles.bottomCenter}>
       {macros && Array.from(macros.entries()).map(([macroName, macroList]) => {
@@ -460,7 +353,7 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
             key={macroName}
             className={selectedFKey === macroName ? styles.selectedFKeyButton : styles.fKeyButton}
             onClick={() => handleFKeyClick(macroName)}
-            title={`Hotkey: ${macroList[0].hotkey}`} // Assuming the hotkey is the same for all macros in the list
+            title={`Hotkey: ${macroList[0].hotkey}`}
           >
             <div className={styles.macroName}>{macroName}</div>
             {loadingMacro === macroName ? (

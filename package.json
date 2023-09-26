@@ -7,11 +7,14 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "jest"
+    "test": "jest",
+    "first": "cd desktop && deno run --allow-all --unstable main.ts",
+    "second": "cd desktop && deno compile --no-check --allow-all --unstable --target x86_64-apple-darwin --output GalaxyBrowser main.ts",
+    "third": "cd desktop && deno run --allow-all --unstable build.ts"
   },
   "dependencies": {
-    "@excalidraw/excalidraw": "npm:@galaxydo/excalidraw@0.15.2-sep20",
-    "@galaxydo/excalidraw": "0.15.2-sep20",
+    "@excalidraw/excalidraw": "npm:@galaxydo/excalidraw@0.15.2-sep27",
+    "@galaxydo/excalidraw": "0.15.2-sep27",
     "@galaxydo/excalidraw-utils": "0.1.2-23.8.18",
     "@polkadot/api": "^10.5.1",
     "@polkadot/extension-dapp": "^0.46.1",

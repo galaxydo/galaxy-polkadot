@@ -119,6 +119,7 @@ export default function App() {
       ref={excalidrawRef}
       zenModeEnabled={false}
       gridModeEnabled={false}
+      viewModeEnabled={false}
       theme="dark"
       onChange={(
         elements: ExcalidrawElement[],
