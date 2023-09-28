@@ -100,7 +100,7 @@ class GalaxyAPI {
     }
   }
 
-  private defaultDenoMacro(input: ExcalidrawElement): ExcalidrawElement[] {
+  private defaultDenoMacro(input: ExcalidrawElement): Promise<ExcalidrawElement[]> {
     this.log(`Input received: ${JSON.stringify(input)}`, "defaultDenoMacro");
     try {
       if (input.type !== "text") throw "not ok";
@@ -109,25 +109,21 @@ class GalaxyAPI {
       const match = macroSource.match(regex);
       const functionName = (match && match[1]) || "AnonymousDeno";
 
-      const wrappedFunction = async (inputElement) => {
-        const response = await window.webui.call('executeDeno', JSON.stringify({
-          code: `(${macroSource})`,
-          input: inputElement
-        }));
-        this.log('response ' + response, 'w');
-        if (response.success) {
-          return response.data;
-        } else {
-          console.error('deno', response.error);
-          return response.error;
-        }
-      };
+      const wrappedFunction = (inputElement) => {
+        return new Promise(async (resolve, reject) => {
+          try {
+            const response = await this.executeDeno(
+              macroSource,
+              inputElement,
+            );
+            return resolve(response);
+          } catch (err) {
+            console.error(err);
+            return reject(err);
+          }
 
-      //   const wrappedFunction = new Function(`
-      //   return async function(inputElement) {
-      //     return window.webui.call('executeDeno', \`${macroSource.replace(/`/g, "\\`")}\`);
-      //   }
-      // `)();
+        })
+      };
 
       this.registerMacro(functionName, wrappedFunction);
       return `${functionName} registered at ${new Date().toTimeString()}`;

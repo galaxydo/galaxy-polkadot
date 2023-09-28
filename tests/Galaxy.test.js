@@ -1,13 +1,17 @@
 const puppeteer = require("puppeteer");
 
+const timeout = 30000;
+
 const beforeTest = async () => {
   let browser;
   let page;
-
+  
   browser = await puppeteer.launch({
     headless: "new",
+    timeout,
   });
   page = await browser.newPage();
+  page.setDefaultTimeout(timeout);
   page.on("pageerror", (err) => {
     console.log("Unhandled browser error:", err);
     process.emit('uncaughtException', err);
@@ -144,9 +148,9 @@ describe("Galaxy Macros Engine", () => {
     await validateUpdatedOutputElement(page, "outputId", "6", "placeholder");
 
     await browser.close();
-  });
+  }, timeout);
 
-  it.only("Deno macros", async () => {
+  it("Deno macros", async () => {
     const { page, browser } = await initializeTestPage();
 
     function secondMacro(inputElement) {
@@ -192,9 +196,9 @@ describe("Galaxy Macros Engine", () => {
             return;
           }
 
-          const { taskId, code: macroSource } = data;
+          const { taskId, code: macroSource } = JSON.parse(data);
 
-          if (macroSource.includes("function secondMacro(inputElement)")) {
+          if (macroSource?.includes("function secondMacro(inputElement)")) {
             const result = 'hundred twenty';
             window.ga.executeCallback(taskId, { success: true, data: result });
             return result;
@@ -208,7 +212,6 @@ describe("Galaxy Macros Engine", () => {
     });
     await executeMacroOnPage(page, "macro-button-deno");
     await validateMacroExecution(page, "denoOutputId", "secondMacro", "Deno result placeholder");
-
     const elementsSecondMacro = [{
       type: 'text',
       id: "inputId",
@@ -234,12 +237,10 @@ describe("Galaxy Macros Engine", () => {
       },
     }];
     await setupSceneOnPage(page, elementsSecondMacro, "inputId");
-
     await executeMacroOnPage(page, "macro-button-secondMacro");
     await validateUpdatedOutputElement(page, "outputId", "hundred twenty", "placeholder");
-
     await browser.close();
-  });
+  }, timeout);
 
   it("Python macros", async () => {
     const { page, browser } = await initializeTestPage();
@@ -331,7 +332,8 @@ describe("Galaxy Macros Engine", () => {
     await validateUpdatedOutputElement(page, "outputId", "120", "placeholder");
 
     await browser.close();
-  });
+  }, timeout);
+
   it("Open Macro", async () => {
     // also should work with simply local name simply ipfs link, but the above case scenario is most complex
     const { page, browser } = await beforeTest();
@@ -421,7 +423,8 @@ describe("Galaxy Macros Engine", () => {
 
     await browser.close();
 
-  });
+  }, timeout);
+
   it("Publish Macro", async () => {
     const { page, browser } = await initializeTestPage();
 
@@ -526,7 +529,7 @@ describe("Galaxy Macros Engine", () => {
 
     // Close the browser to end the test.
     await browser.close();
-  });
+  }, timeout);
 
   it("Save Macro", async () => {
     const { page, browser } = await initializeTestPage();
@@ -607,5 +610,5 @@ describe("Galaxy Macros Engine", () => {
     expect(updatedFrameName.includes(layerName)).toBe(true);
 
     await browser.close();
-  });
+  }, timeout);
 });
