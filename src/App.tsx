@@ -72,7 +72,11 @@ export default function App() {
   useEffect(() => {
     console.log('window.excalidraw', excalidrawRef.current);
 
-    window.walletName = Object.keys(window.injectedWeb3)[0];
+    if (window.injectedWeb3 && typeof window.injectedWeb3 === 'object') {
+      window.walletName = Object.keys(window.injectedWeb3)[0];
+    } else {
+      console.warn('window.injectedWeb3 is not defined or not an object');
+    }
 
     if (excalidrawRef.current) {
       const ea = excalidrawRef.current!;

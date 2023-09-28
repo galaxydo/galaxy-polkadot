@@ -38,7 +38,7 @@ console.log('! showNotification', JSON.stringify(input));
       <div className={styles.bottomRight}>
         {notifications.map((notification, index) => {
           const notificationId = `notification-${notification.type}`
-          console.log('! notificationId', notificationId);
+          // console.log('! notificationId', notificationId);
           return (
           <div data-testid={notificationId} key={index} className={styles.notification}>
             <p>{notification.message}</p>

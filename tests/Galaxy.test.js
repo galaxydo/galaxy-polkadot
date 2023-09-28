@@ -53,21 +53,31 @@ async function executeMacroOnPage(page, macroButtonTestId) {
   const macroButton = await page.waitForSelector(`[data-testid="${macroButtonTestId}"]`);
   await macroButton.click();
 }
-async function validateMacroExecution(page, outputElementId, expectedFirstWord) {
+async function validateMacroExecution(page, outputElementId, expectedFirstWord, originalPlaceholder) {
+  await page.waitForFunction(([outputElementId, originalPlaceholder]) => {
+    const el =
+      window.ea.getSceneElements().find(it => it.id == outputElementId);
+    return el && el.text != originalPlaceholder;
+  }, {}, [outputElementId, originalPlaceholder]);
   const updatedOutputElement = await page.evaluate((outputElId) => {
     return window.ea.getSceneElements().find(it => it.id == outputElId);
   }, outputElementId);
   expect(updatedOutputElement.text.split(' ')[0]).toBe(expectedFirstWord);
 }
 
-async function validateUpdatedOutputElement(page, outputElementId, expectedText) {
+async function validateUpdatedOutputElement(page, outputElementId, expectedText, originalPlaceholder) {
+  await page.waitForFunction(([outputElementId, originalPlaceholder]) => {
+    const el =
+      window.ea.getSceneElements().find(it => it.id == outputElementId);
+    return el && el.text != originalPlaceholder;
+  }, {}, [outputElementId, originalPlaceholder]);
   const updatedOutputElement = await page.evaluate((outputElId) => {
     return window.ea.getSceneElements().find(it => it.id == outputElId);
   }, outputElementId);
   expect(updatedOutputElement.text).toBe(expectedText);
 }
 describe("Galaxy Macros Engine", () => {
-  it.only("should correctly register and execute a JS macro, then execute the defined firstMacro", async () => {
+  it("JS Macros", async () => {
     const { page, browser } = await initializeTestPage();
 
     function firstMacro(inputElement) {
@@ -82,7 +92,7 @@ describe("Galaxy Macros Engine", () => {
     }, {
       type: 'text',
       id: "jsMacroOutputId",
-      text: "JS macro result placeholder",
+      text: "placeholder",
     }, {
       type: "arrow",
       x: 100,
@@ -102,8 +112,7 @@ describe("Galaxy Macros Engine", () => {
     await setupSceneOnPage(page, elementsJSMacro, "jsMacroInputId");
 
     await executeMacroOnPage(page, "macro-button-js");
-    await validateMacroExecution(page, "jsMacroOutputId", "firstMacro");
-
+    await validateMacroExecution(page, "jsMacroOutputId", "firstMacro", "placeholder");
     // Setup and execute the "firstMacro" using the defined JS macro
     const elementsFirstMacro = [{
       type: 'text',
@@ -132,12 +141,12 @@ describe("Galaxy Macros Engine", () => {
     await setupSceneOnPage(page, elementsFirstMacro, "inputId");
 
     await executeMacroOnPage(page, "macro-button-firstMacro");
-    await validateUpdatedOutputElement(page, "outputId", "6");
+    await validateUpdatedOutputElement(page, "outputId", "6", "placeholder");
 
     await browser.close();
   });
 
-  it("should correctly register and execute a Deno macro", async () => {
+  it.only("Deno macros", async () => {
     const { page, browser } = await initializeTestPage();
 
     function secondMacro(inputElement) {
@@ -176,21 +185,29 @@ describe("Galaxy Macros Engine", () => {
       },
     }];
     await setupSceneOnPage(page, elementsDeno, "denoInputId");
-
     await page.evaluate(() => {
       window.webui = {
-        executeDeno: function(macroSource) {
+        call: function(method, data) {
+          if (method !== "executeDeno") {
+            return;
+          }
+
+          const { taskId, code: macroSource } = data;
+
           if (macroSource.includes("function secondMacro(inputElement)")) {
-            return 'hundred twenty';
+            const result = 'hundred twenty';
+            window.ga.executeCallback(taskId, { success: true, data: result });
+            return result;
           } else {
-            throw new Error("Invalid macro source received.");
+            const error = "Invalid macro source received.";
+            window.ga.executeCallback(taskId, { success: false, error: error });
+            throw new Error(error);
           }
         },
       };
     });
-
     await executeMacroOnPage(page, "macro-button-deno");
-    await validateMacroExecution(page, "denoOutputId", "secondMacro");
+    await validateMacroExecution(page, "denoOutputId", "secondMacro", "Deno result placeholder");
 
     const elementsSecondMacro = [{
       type: 'text',
@@ -219,12 +236,12 @@ describe("Galaxy Macros Engine", () => {
     await setupSceneOnPage(page, elementsSecondMacro, "inputId");
 
     await executeMacroOnPage(page, "macro-button-secondMacro");
-    await validateUpdatedOutputElement(page, "outputId", "hundred twenty");
+    await validateUpdatedOutputElement(page, "outputId", "hundred twenty", "placeholder");
 
     await browser.close();
   });
 
-  it("should correctly register and execute a Python macro, then execute the defined factorial function", async () => {
+  it("Python macros", async () => {
     const { page, browser } = await initializeTestPage();
 
     // Define the Python function
@@ -265,7 +282,7 @@ describe("Galaxy Macros Engine", () => {
     await setupSceneOnPage(page, elementsPythonMacro, "pythonMacroInputId");
 
     await executeMacroOnPage(page, "macro-button-python");
-    await validateMacroExecution(page, "pythonMacroOutputId", "factorial");
+    await validateMacroExecution(page, "pythonMacroOutputId", "factorial", "Python macro result placeholder");
 
     // Setup and execute the "factorial" using the defined Python macro
     const elementsFactorial = [{
@@ -296,23 +313,26 @@ describe("Galaxy Macros Engine", () => {
     await setupSceneOnPage(page, elementsFactorial, "inputId");
     await page.evaluate(() => {
       window.webui = {
-        executePython: function(macroSource) {
-          // For this test, just assert the macroSource and return a static value.
-          if (macroSource.includes("def factorial(n):")) {
-            return '120';
+        call: function(methodName, macroSource) {
+          if (methodName === "executePython") {
+            // For this test, just assert the macroSource and return a static value.
+            if (macroSource.includes("def factorial(n):")) {
+              return '120';
+            } else {
+              throw new Error("Invalid macro source received.");
+            }
           } else {
-            throw new Error("Invalid macro source received.");
+            throw new Error(`Invalid method name: ${methodName}`);
           }
         },
       };
     });
-
     await executeMacroOnPage(page, "macro-button-factorial");
-    await validateUpdatedOutputElement(page, "outputId", "120");
+    await validateUpdatedOutputElement(page, "outputId", "120", "placeholder");
 
     await browser.close();
   });
-  it("should resolve galaxy layer name into ipfs link, download it from ipfs with kubo client, update scene with new elements and images", async () => {
+  it("Open Macro", async () => {
     // also should work with simply local name simply ipfs link, but the above case scenario is most complex
     const { page, browser } = await beforeTest();
 
@@ -321,15 +341,22 @@ describe("Galaxy Macros Engine", () => {
     await page.waitForFunction(() => window.ea);
 
     const layerName = 'remote layer';
-    const galaxyLink = `galaxy://${layerName}`;
+    const galaxyLink = `galaxy://user/${layerName}`;
     const ipfsLink = 'ipfs://1xx';
 
     await page.evaluate((galaxyLink, ipfsLink) => {
-      window.wallet = {
-        readContract: (contract, method, value) => {
-          if (value != galaxyLink) throw 'first';
-          // resolves into ipfs://1xx from contract mapping
-          return Promise.resolve(ipfsLink)
+      window.contracts = {
+        read: ({ method, args, metadata, options }) => {
+          if (method !== 'resolveLink') {
+            return Promise.reject(new Error('Invalid method.'));
+          }
+          console.log('! args', JSON.stringify(args));
+
+          if (args[0] == 'user' && args[1] === galaxyLink) {
+            return Promise.resolve({ value: { decoded: { Ok: ipfsLink } } });
+          } else {
+            return Promise.reject(new Error('first'));
+          }
         }
       };
       window.ipfs = {
@@ -344,7 +371,8 @@ describe("Galaxy Macros Engine", () => {
           })
         }
       }
-    }, galaxyLink, ipfsLink);
+      window.galaxyMetadata = 'mock';
+    }, layerName, ipfsLink);
 
     // Define test data.
     const frameId = "frameId";
@@ -379,63 +407,59 @@ describe("Galaxy Macros Engine", () => {
     await page.waitForSelector(`[data-testid="loading-indicator-save"]`, { hidden: true });
 
     // Validate the frame's updated name.
-    const updatedFrameName = await page.evaluate((frameId) => {
+    await page.waitForFunction((frameId) => {
       const frameElement = window.ea.getSceneElements().find(it => it.id === frameId);
-      return frameElement ? frameElement.name : null;
+      return frameElement?.name != null;
+    }, {}, frameId);
+
+    const updatedFrame = await page.evaluate((frameId) => {
+      const frameElement = window.ea.getSceneElements().find(it => it.id === frameId);
+      return frameElement;
     }, frameId);
 
-    expect(updatedFrameName.includes(layerName)).toBe(true);
+    expect(updatedFrame.name).toBe(ipfsLink);
 
     await browser.close();
 
   });
-  it("should publish layer elements and images uploading to IPFS then broadcasting to smart contract map", async () => {
-    // Arrange: Set up the initial state for the test.
+  it("Publish Macro", async () => {
+    const { page, browser } = await initializeTestPage();
 
-
-        const { page, browser } = await initializeTestPage();
-
-    return; 
-       // Mock behavior for window.contracts.write.
     await page.evaluate(() => {
       window.contracts = {
-        write: async ({ address, method, args }) => {
-          // Mock behavior for writing to a smart contract.
-          // Check that the method is "publish" and args contain layer name and ipfs link.
-          if (method !== "saveLayer" || !args || args.length !== 2) {
+        write: async ({ address, method, args, metadata }) => {
+          if (method !== "createLayer" || !args || args.length !== 2) {
             throw new Error("Invalid call to contracts.write");
           }
 
           const [layerName, ipfsLink] = args;
           console.log('GalaxyAPI', `Writing to contract: Address ${address}, Method ${method}, Args ${args}`);
 
-          // Return a promise that resolves instantly with a mock transaction ID.
-          const mockTransactionId = 'mock-transaction-id'; // Mock transaction ID
-          return Promise.resolve(mockTransactionId);
+          return {
+            gasRequired: 1000000,  // Mock gas required
+            continueWithTransaction: async ({ onSuccess, onStatus }) => {
+              const mockTransactionId = 'mock-transaction-id';
+              onSuccess(mockTransactionId);
+            },
+            caller: 'mock-caller-address' // Mock caller address
+          };
         },
       };
+      window.connect = () => true;
     });
 
-    // Mock behavior for window.ipfs.upload.
     await page.evaluate(() => {
       window.ipfs = {
-        upload: async (elements) => {
-          // Mock behavior for uploading to IPFS.
-          // Check that elements is an array of scene elements.
-          if (!Array.isArray(elements)) {
-            throw new Error("Invalid call to ipfs.upload");
-          }
+        upload: async (data) => {
+          // if (!data || data.elements instanceof Array || typeof data.files !== 'object') {
+          //   return ["Invalid call to ipfs.upload", null];
+          // }
 
-          // Return a mock IPFS link.
           const mockIpfsLink = 'ipfs://example-ipfs-link'; // Mock IPFS link
-          return mockIpfsLink;
+          return [null, mockIpfsLink];
         },
       };
     });
-
-    // Act: Perform the actions necessary to test the publish functionality.
-    // Spawn and select a frame element.
-
 
     const frameId = "frameId";
     const elements = [
@@ -463,14 +487,26 @@ describe("Galaxy Macros Engine", () => {
     const modal = await page.$(`[data-testid="modal-dialog"]`);
     expect(modal).toBeTruthy();
 
+    // Click the confirm button.
+    let modalConfirmButton = await page.$(`[data-testid="modal-button"]`);
+    await modalConfirmButton.click();
+
     // Fill in a layer name in the modal input field.
-    const layerInput = await modal.$(`[data-testid="modal-input"]`);
+    await page.waitForSelector(`[data-testid="modal-input"]`);
+    const layerInput = await page.$(`[data-testid="modal-input"]`);
     expect(layerInput).toBeTruthy();
     await layerInput.type('layerName');
-
-    // Click the confirm button.
-    const modalConfirmButton = await modal.$(`[data-testid="modal-button"]`);
+    // confirm layer name
+    modalConfirmButton = await page.$(`[data-testid="modal-button"]`);
     await modalConfirmButton.click();
+    // confirm transaction
+    await page.waitForSelector(`[data-testid="modal-dialog"]`);
+    modalConfirmButton = await page.$(`[data-testid="modal-button"]`);
+    await modalConfirmButton.click();
+    await page.waitForFunction((frameId) => {
+      const frameElement = window.ea.getSceneElements().find(it => it.id === frameId);
+      return frameElement?.name != null;
+    }, {}, frameId);
 
     // Validate the frame's updated name.
     const updatedFrameName = await page.evaluate((frameId) => {
@@ -492,12 +528,8 @@ describe("Galaxy Macros Engine", () => {
     await browser.close();
   });
 
-  it("should correctly update frame name with output from save macro", async () => {
-    const { page, browser } = await beforeTest();
-
-    // Navigate to the application.
-    await page.goto("http://localhost:5173");
-    await page.waitForFunction(() => window.ea);
+  it("Save Macro", async () => {
+    const { page, browser } = await initializeTestPage();
 
     // Define test data.
     const frameId = "frameId";
@@ -525,25 +557,31 @@ describe("Galaxy Macros Engine", () => {
     const saveButton = await page.waitForSelector(`[data-testid="macro-button-save"]`);
     expect(saveButton).toBeTruthy();
 
-    // Mock the Deno execution with expected behavior.
     await page.evaluate(([frameId, layerName]) => {
       window.webui = {
-        executeDeno: function(script) {
-          if (script.includes("Deno.KV.put") && script.includes(frameId)) {
+        call: function(method, data) {
+          if (method !== "executeDeno") {
+            return;
+          }
+          const { taskId, code: script } = JSON.parse(data);
+
+          if (script.includes("kv_toolbox") && script.includes(layerName)) {
             const currentDate = new Date().toLocaleDateString();
-            return { success: true, details: `${layerName} - ${currentDate}` };
+            const denoResult =
+              { success: true, data: `${layerName} - ${currentDate}` };
+            console.log('! denoResult', JSON.stringify(denoResult));
+            window.ga.executeCallback(taskId, denoResult);
+            return denoResult;
           } else {
             throw new Error(`Invalid script received: ${script}`);
           }
         },
       };
     }, [frameId, layerName]);
-
     // Trigger the save operation.
     await saveButton.click();
-
     // Wait for and validate the modal.
-    await page.waitForSelector(`[data-testid="loading-indicator-save"]`, { hidden: false });
+    // await page.waitForSelector(`[data-testid="loading-indicator-save"]`, { hidden: false });
     const modal = await page.waitForSelector(`[data-testid="modal-dialog"]`);
     expect(modal).toBeTruthy();
 
@@ -552,10 +590,14 @@ describe("Galaxy Macros Engine", () => {
     await layerInput.type(layerName);
     const modalSaveButton = await modal.$(`[data-testid="modal-button"]`);
     await modalSaveButton.click();
-
     // Wait for the saving process to complete.
-    await page.waitForSelector(`[data-testid="loading-indicator-save"]`, { hidden: true });
+    // await page.waitForSelector(`[data-testid="loading-indicator-save"]`, { hidden: true });
 
+    await page.waitForFunction((frameId) => {
+      const frameElement = window.ea.getSceneElements().find(it => it.id === frameId);
+      return frameElement?.name != null;
+    }, {}, frameId);
+    console.log('e')
     // Validate the frame's updated name.
     const updatedFrameName = await page.evaluate((frameId) => {
       const frameElement = window.ea.getSceneElements().find(it => it.id === frameId);

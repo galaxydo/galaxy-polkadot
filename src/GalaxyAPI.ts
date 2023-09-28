@@ -225,7 +225,7 @@ class GalaxyAPI {
 
             const denoScript = `
         async function saveScene(input) {
-          const kvBlob = await import('https://deno.land/x/kv_toolbox/blob.ts');
+          const kvBlob = await import('https://deno.land/x/kv_toolbox@0.0.4/blob.ts');
   const kv = await Deno.openKv();
   const blob = new TextEncoder().encode('${escapedSceneJSON}');
   await kvBlob.set(kv, ["layers", '${escapedSceneName}'], blob);
@@ -405,6 +405,7 @@ class GalaxyAPI {
 
               // Resolve galaxyLink to IPFS link
               if (link.startsWith('galaxy://')) {
+
                 if (!window.galaxyMetadata) {
                   window.galaxyMetadata = await fetch(this.galaxyMetadata)
                     .then(it => it.json());
