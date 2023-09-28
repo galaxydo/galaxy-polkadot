@@ -1,93 +1,94 @@
 # galaxy-polkadot
 
-Galaxy (Milestone 1) is a web application built with React, allowing users to create, save, and load scenes using Excalidraw and IPFS.
+Galaxy (Milestone 2) is a web application built with React, allowing users to create, save, and load scenes using Excalidraw, IPFS, and Polkadot.
 
-## Table of Contents
-
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-- [Running the Tests](#running-the-tests)
-- [License](#license)
-
-## Getting Started
+## Setup
 
 These instructions will help you set up the project on your local machine for development and testing purposes.
 
-### Prerequisites
-
-- Node.js (v14.x.x or later)
-- yarn (v1.22.x or later)
-- Docker (optional, for deployment)
-
-### Installation
-
-Clone the repository:
-
 ```
 https://github.com/7flash/galaxy-polkadot.git
+git checkout milestone2
 cd galaxy-polkadot
+git submodule update --init --recursive
+pnpm install
 ```
 
-### with docker
+## Frontend
 
-1. Build docker image
+To run the unit tests for the project, follow these steps:
 
-```
-docker build -t galaxy-v1 .
-```
+1. **Start the frontend development server:**
 
-2. Run container exposing internal port 80 to custom host port
-
-```
-docker run -p 5173:80 galaxy-v1
+```bash
+pnpm dev-frontend
 ```
 
-### manually
+2. **In a new terminal tab, run the tests:**
 
-1. Install the dependencies:
-
-```
-yarn install
+```bash
+pnpm test-frontend
 ```
 
-2. Start the development server:
+Upon executing, you should observe an output resembling:
 
 ```
-yarn dev
+PASS  tests/Galaxy.test.js (28.307 s)
+Galaxy Macros Engine
+    ✓ JS Macros (4340 ms)
+    ✓ Deno macros (4270 ms)
+    ✓ Python macros (5137 ms)
+    ✓ Open Macro (4846 ms)
+    ✓ Publish Macro (4805 ms)
+    ✓ Save Macro (3877 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       6 passed, 6 total
+Snapshots:   0 total
+Time:        28.367 s
 ```
 
-### Running App
+## Backend
 
-3. Open your browser and navigate to `http://localhost:5173`.
+When focusing on the backend aspect of the project (specifically the `main.ts`), follow these steps:
 
-## Running the Tests
+1. **Start the backend development server:**
 
-```
-yarn test
-```
-
-### Running IPFS locally (optional)
-
-1. Mount a host directory with the -v option to Docker. 
-
-```
-export ipfs_staging=</absolute/path/to/somewhere/>
-export ipfs_data=</absolute/path/to/somewhere_else/>
+```bash
+pnpm dev-deno
 ```
 
-2. Start a container running ipfs and expose ports 4001 (P2P TCP/QUIC transports), 5001 (RPC API) and 8080 (Gateway):
+If you made modifications in the frontend while working on the backend, you'll need to rebuild both together to reflect the frontend changes:
 
-```
-docker run -d --name ipfs_host -v $ipfs_staging:/export -v $ipfs_data:/data/ipfs -p 4001:4001 -p 4001:4001/udp -p 127.0.0.1:8080:8080 -p 127.0.0.1:5001:5001 ipfs/kubo:latest
+2. **Rebuild both frontend and backend together:**
+
+```bash
+pnpm dev-desktop
 ```
 
-3. Update src/config.ts
+## Release
 
+To release the project, execute the following commands in sequence:
+
+1. **Build for release:**
+
+```bash
+pnpm release-first
 ```
-export const ipfsApiUrl = "http://localhost:5001"
-export const ipfsGatewayUrl = "http://localhost:8080"
+
+2. **Compile for macOS:**
+
+```bash
+pnpm release-second
 ```
+
+3. **Run the build script:**
+
+```bash
+pnpm release-third
+```
+
+Executing these commands in order ensures that the project is built, compiled, and prepared for release appropriately.
 
 ## License
 
