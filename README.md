@@ -22,6 +22,10 @@ Galaxy (Milestone 2) is a web application built with React, allowing users to cr
 - [Download Docker](https://www.docker.com/)
 - Check version with: `docker --version`
 
+### cargo-contract (Optional)
+- Install with: `cargo install --force --locked cargo-contract`
+- Check version with: `cargo contract --version`
+
 ## Setup
 
 These instructions will help you set up the project on your local machine for development and testing purposes.
@@ -123,6 +127,32 @@ docker run -d -p 8080:80 galaxy:latest
 ```
 
 Open [http://localhost:8080](http://localhost:8080) in your browser.
+
+## Contract
+
+### Compile locally
+
+Ensure the latest version:
+
+```
+cd contract
+git pull && git checkout main
+```
+
+Compile source to galaxy.wasm
+
+```
+cargo contract build
+```
+
+### Rococo Deployment
+
+The Galaxy Contract has been deployed on the Rococo testnet.
+
+- **Contract Address**: 
+   ```
+   5E1zfVZmokEX29W9xVzMYJAzvwnXWE7AVcP3d1rXzWhC4sxi
+   ```
 
 ## License
 
