@@ -90,6 +90,38 @@ If you made modifications in the frontend while working on the backend, you'll n
 pnpm dev-desktop
 ```
 
+### excalidraw-assets
+
+In production mode, backend will load recent frontend build from public repository, and then spawn a browser window.
+
+In development mode, instead it will read frontend build locally from ./dist submodule folder.
+
+In case, after running dev-desktop, it does not produce excalidraw-assets in ./dist folder as expected, run the following command to copy it manually from recent release:
+
+```
+cp ./node_modules/@galaxydo/excalidraw/dist/excalidraw-assets ./dist
+```
+
+Accordingly, if you made changes in excalidraw submodule, make sure to rebuild it.
+
+```
+cd excalidraw/src/packages/excalidraw && yarn build:umd
+```
+
+Then publish a new release to registry, and update dependency in package.json to your version.
+
+### webui
+
+In production mode, **deno-webui** package loads static library **webui** from public a repository, resolving to the file corresponding to the target platform.
+
+In development mode, local library path must be specified in [main.ts](https://github.com/7flash/galaxy-desktop-app/blob/9763b504caf094f1f4000300185c9594a05b560e/main.ts#L8)
+
+In case, the path of webui compiled library on your platform differs from default path, you must compile it manually (make sure to have cpp installed) and then update libPath parameter above.
+
+```
+cd desktop/webui && make
+```
+
 ## Release
 
 To release the project, execute the following commands in sequence:
