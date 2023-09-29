@@ -259,7 +259,6 @@ export default function App() {
                   // insert new elements into the frame
                   const newFrame = updatedEl.find(jt => jt.id == outputEl.id);
                   if (!newFrame) throw 'should return elements with frame';
-                debugger;
                   it = [{
                     ...outputEl,
                     ...newFrame,

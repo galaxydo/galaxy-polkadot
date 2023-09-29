@@ -12,7 +12,7 @@ function useInteractWithContract() {
   // console.log('chainConfig', chainConfig);
   const { api } = useApi(chainConfig?.id) || {};
 
-  console.log('Initializing useInteractWithContract...a', api);
+  // console.log('Initializing useInteractWithContract...a', api);
 
   const apiRef = useRef(api);
   apiRef.current = api;
@@ -21,7 +21,7 @@ function useInteractWithContract() {
   accountRef.current = account;
 
   useEffect(() => {
-    console.log("API changed:", api, apiRef.current);
+    // console.log("API changed:", api);
   }, [api]);
 
   const getAbi = useCallback((metadata) => {
@@ -62,10 +62,7 @@ function useInteractWithContract() {
 
   const read = useCallback(async ({ address, metadata, method, args = [], options }) => {
     console.log(`Reading data using method: ${method} from address: ${address} with args:`, args);
-    if (!apiRef.current) {
-        console.warn('API is not connected. Attempting to connect...');
-        await window.connect();
-    }
+
     const abi = getAbi(metadata);
     const chainContract = getChainContract(abi, address);
     const abiMessage = getAbiMessage(chainContract, method);
@@ -77,8 +74,8 @@ function useInteractWithContract() {
         : undefined;
 
     if (!abiMessage || !chainContract || !caller) {
-      console.error('Invalid arguments or setup 1');
-      throw new Error('Invalid arguments or setup 2');
+      console.error('Invalid arguments or setup');
+      throw new Error('Invalid arguments or setup');
     }
 
     try {
