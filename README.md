@@ -2,6 +2,26 @@
 
 Galaxy (Milestone 2) is a web application built with React, allowing users to create, save, and load scenes using Excalidraw, IPFS, and Polkadot.
 
+## Development Prerequisites
+
+### Node.js
+- **Version**: v18 or later
+- [Download Node.js](https://nodejs.org/)
+- Check version with: `node --version`
+
+### Deno
+- **Version**: v1.36 or later
+- [Install Deno](https://docs.deno.com/runtime/manual/getting_started/installation)
+- Check version with: `deno --version`
+
+### pnpm (Recommended)
+- Install with: `npm install -g pnpm`
+- Check version with: `pnpm --version`
+
+### Docker (Optional)
+- [Download Docker](https://www.docker.com/)
+- Check version with: `docker --version`
+
 ## Setup
 
 These instructions will help you set up the project on your local machine for development and testing purposes.
