@@ -7,9 +7,9 @@ Galaxy (Milestone 2) is a web application built with React, allowing users to cr
 These instructions will help you set up the project on your local machine for development and testing purposes.
 
 ```
-https://github.com/7flash/galaxy-polkadot.git
-git checkout milestone2
+git clone https://github.com/7flash/galaxy-polkadot.git
 cd galaxy-polkadot
+git checkout milestone2
 git submodule update --init --recursive
 pnpm install
 ```
