@@ -110,6 +110,20 @@ pnpm release-third
 
 Executing these commands in order ensures that the project is built, compiled, and prepared for release appropriately.
 
+## Docker (Frontend)
+
+**Build Image:**
+```bash
+docker build -t galaxy:latest .
+```
+
+**Run Application:**
+```bash
+docker run -d -p 8080:80 galaxy:latest
+```
+
+Open [http://localhost:8080](http://localhost:8080) in your browser.
+
 ## License
 
 This project is licensed under the MIT License.
