@@ -453,12 +453,13 @@ const layerStr = new TextDecoder().decode(layerBinary);
               }
             }
 
-            // Assuming `input` represents the user-defined frame.
-            // `newElements` represent the elements with their own dimensions and coordinates.
-
-            // Convert elements to Excalidraw compatible format
-            const newElements = window.convertToExcalidrawElements(scene.elements);
-
+            const newElements = window.convertToExcalidrawElements(scene.elements.map(it => {
+              return {
+                ...it,
+                id: nanoid(),
+              }
+            }));
+            
             // Extracting the x, y coordinates from the user-defined frame
             const frameX = input.x;
             const frameY = input.y;
@@ -484,7 +485,6 @@ const layerStr = new TextDecoder().decode(layerBinary);
             // Creating new adjusted elements
             const adjustedElements = newElements.map(it => ({
               ...it,
-              id: nanoid(),
               x: it.x + offsetX,
               y: it.y + offsetY,
             }));
