@@ -154,6 +154,8 @@ The Galaxy Contract has been deployed on the Rococo testnet.
    5E1zfVZmokEX29W9xVzMYJAzvwnXWE7AVcP3d1rXzWhC4sxi
    ```
 
+After new deployment, ensure to update the address in [GalaxyAPI.ts](https://github.com/7flash/galaxy-polkadot/blob/a551fc37d0c91c453aa6d04e40fd5d66edb0bb02/src/GalaxyAPI.ts#L43).
+
 ## License
 
 This project is licensed under the MIT License.
