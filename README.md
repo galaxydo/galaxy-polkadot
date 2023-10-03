@@ -76,7 +76,15 @@ Time:        28.367 s
 
 When focusing on the backend aspect of the project (specifically the `main.ts`), follow these steps:
 
-1. **Start the backend development server:**
+1. **Update submodules:**
+
+Since git submodules are always pointing to specific commit, its' important to ensure you have all of them synchronized to the recent main branch, before running backend:
+
+```bash
+pnpm pull-submodules
+```
+
+2. **Start the backend development server:**
 
 ```bash
 pnpm dev-deno
@@ -84,7 +92,7 @@ pnpm dev-deno
 
 If you made modifications in the frontend while working on the backend, you'll need to rebuild both together to reflect the frontend changes:
 
-2. **Rebuild both frontend and backend together:**
+3. **Rebuild both frontend and backend together:**
 
 ```bash
 pnpm dev-desktop
