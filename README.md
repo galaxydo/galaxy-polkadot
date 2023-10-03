@@ -176,8 +176,6 @@ docker run -d -p 8080:80 galaxy:latest
 
 Open [http://localhost:8080](http://localhost:8080) in your browser.
 
-
-
 ## Contract
 
 ### Compile locally
@@ -205,6 +203,11 @@ The Galaxy Contract has been deployed on the Rococo testnet.
    ```
 
 After new deployment, ensure to update the address in [GalaxyAPI.ts](https://github.com/7flash/galaxy-polkadot/blob/a551fc37d0c91c453aa6d04e40fd5d66edb0bb02/src/GalaxyAPI.ts#L43).
+
+### Additional notes
+
+**Layers padding**
+When loading a scene into a new frame, notice that all elements coordinates are adjusted to fit into the frame, adjusting the frame size as well if needed, also clipping an empty space surronding elements in the original frame. In case if its' crucial to maintain the padding, make sure to draw an additional rectangle container around the elements inside of the frame with needed padding when publishing.
 
 ## License
 
