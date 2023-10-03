@@ -148,6 +148,14 @@ Executing these commands in order ensures that the project is built, compiled, a
 
 ## Docker (Frontend)
 
+**Docker Limitations:**
+
+Docker image only suitable for running and testing frontend app. It also allows to define and execute frontend-side JS macros, including "publish" macro which invokes wallet transaction to publish layer.
+
+But since backend is designed to launch a default user browser installed on local machine, docker is not suitable for running backend app.
+
+In case of testing backend-side Deno macros, such as "save" macro to save layers in persistent local database, please either follow instructions above to run full app locally, or simply install recent release build, which already includes deno engine (but does not include chromium and still depends on user default browser and its default profile with installed wallet extension) 
+
 **Build Image:**
 ```bash
 docker build -t galaxy:latest .
@@ -159,6 +167,8 @@ docker run -d -p 8080:80 galaxy:latest
 ```
 
 Open [http://localhost:8080](http://localhost:8080) in your browser.
+
+
 
 ## Contract
 
