@@ -1,6 +1,27 @@
-# galaxy-polkadot
+# Galaxy Browser
 
-Galaxy (Milestone 2) is a web application built with React, allowing users to create, save, and load scenes using Excalidraw, IPFS, and Polkadot.
+## Introduction
+
+Galaxy Browser offers an alternative way to organize and share knowledge — think Obsidian meets Chrome on a shared three-dimensional canvas *with spreadsheet-inspired powerful macros*. [Article](https://telegra.ph/Galaxy-Browser-v111-09-28)
+
+### AI Example
+
+<img width="975" alt="image" src="https://github.com/7flash/galaxy-polkadot/assets/4569866/cb263b10-5989-4e77-b512-58c311355540">
+
+### Try it out
+
+After installing the Galaxy Browser desktop app, you can easily replicate the above scene:
+
+1. Create and select a new frame.
+2. Click "Open Macro".
+3. Paste this link: `galaxy://5ERMmhn6tWtbSX6HspQcztkHbpaYKiZHfiouDBDXgSnMhxU6/oct6-second`
+
+### Macros Explained
+
+- The "input" variable magically references one element the arrow is pointing from.
+- Any remote modules are resolved and built on the fly.
+- The "input" element's value acts as the prompt.
+- The result of the completion is displayed in the "output" element that the arrow points to.
 
 ## Development Prerequisites
 
