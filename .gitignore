@@ -25,3 +25,7 @@ dist-ssr
 .vercel
 
 yarn.lock
+pnpm-lock.yaml
+
+public/excalidraw-assets/
+public/excalidraw-assets-dev/

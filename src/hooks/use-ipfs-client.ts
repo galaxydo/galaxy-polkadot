@@ -8,6 +8,8 @@ export const useIPFSClient = () => {
     const [data, setData] = useState(null);
 
     const loadScene = async (hash) => {
+        hash = hash.replace('ipfs://', '');
+        console.log('ipfs', 'hash', hash);
         const response = await fetch(`${ipfsGatewayUrl}/ipfs/${hash}`)
             .then(it => {
                 if (it.status == 200) {
@@ -18,14 +20,17 @@ export const useIPFSClient = () => {
             });
         console.log('response', response);
         setData(response);
+        return response;
     };
 
     const saveScene = async (content) => {
+        console.log('ipfs', 'content', content);
         try {
-            const result = await client.add(content);
-            console.log('result', result);
+            const result = await client.add(JSON.stringify(content));
+            console.log('ipfs', 'result', result);
             return [null, result.path];
         } catch (error) {
+            console.error('ipfs', error);
             return [error, null];
         }
     };

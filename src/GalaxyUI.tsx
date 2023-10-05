@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { usePolkadotExtension } from "./hooks/use-polkadot-extension";
 import { useIPFSClient } from './hooks/use-ipfs-client';
 import styles from './GalaxyUI.module.css';
@@ -6,6 +6,52 @@ import AddIcon from './assets/add-icon.svg';
 import GetIcon from './assets/get-icon.svg';
 import WalletIcon from './assets/wallet-icon.svg';
 import InfoIcon from './assets/info-icon.svg';
+import { ModalContext } from './ModalDialog';
+import { useWallet, useAllWallets, useChain } from 'useink';  // Import the required hooks
+import { NotificationContext, NotificationProvider } from './NotificationContext';  // Import NotificationContext
+import { useTx, useContract } from 'useink';
+import { pickDecoded, shouldDisable } from 'useink/utils';
+import metadata from './metadata.json';
+
+import { Abi, ContractPromise } from 'useink/core';
+import { useApi } from 'useink';
+import { ChainId } from 'useink/chains';
+import useInteractWithContract from './hooks/useInteractWithContract';
+
+export const ConnectWallet = ({ onClose }) => {
+  const { account, connect, disconnect } = useWallet()
+  const wallets = useAllWallets();
+
+  if (!account) {
+    return (
+      <ul>
+        {wallets.map((w) => (
+          <li key={w.title}>
+            {w.installed ? (
+              <button onClick={() => connect(w.extensionName)}>
+                <img src={w.logo.src} alt={w.logo.alt} />
+                Connect to {w.title}
+              </button>
+            ) : (
+              <a href={w.installUrl}>
+                <img src={w.logo.src} alt={w.logo.alt} />
+                Install {w.title}
+              </a>
+            )}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  return (
+    <>
+      <p>You are connected as {account?.name || account.address}</p>
+      <button onClick={disconnect}>Disconnect Wallet</button>
+      <button onClick={onClose}>Close</button>
+    </>
+  )
+}
 
 const Dialogs = {
   GetScene: 'GetScene',
@@ -14,7 +60,11 @@ const Dialogs = {
   ConnectWallet: 'ConnectWallet',
 };
 
-const GalaxyUI = ({ excalidrawRef }) => {
+const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
+  // console.log('GalaxyUI', macros);
+  const { showModal, closeModal } = useContext(ModalContext);
+  const { showNotification } = useContext(NotificationContext);  // Use NotificationContext
+
   const { accounts, enableExtension } = usePolkadotExtension();
   const { data, loadScene, saveScene } = useIPFSClient();
 
@@ -24,6 +74,81 @@ const GalaxyUI = ({ excalidrawRef }) => {
   const [sceneCreator, setSceneCreator] = useState("");
   const [notifications, setNotifications] = useState([]);
   const [errors, setErrors] = useState([]);
+  const [loadingMacro, setLoadingMacro] = useState(null);
+
+  // State to track the selected F key
+  const [selectedFKey, setSelectedFKey] = useState('');
+
+  const { account, connect, disconnect } = useWallet();
+  const wallets = useAllWallets();
+
+  const chainConfig = useChain();
+
+  const { read, write } = useInteractWithContract();
+
+  // const [isConnected, setConnected] = useState(!!account?.address);
+
+  useEffect(() => {
+    window.account = account;
+  }, [account]);
+
+  useEffect(() => {
+    window.showModal = showModal;
+
+    window.wallets = wallets;
+    window.connect = () => new Promise((resolve) => {
+      if (window.account?.address) {
+        return resolve(window?.account.address);
+      }
+
+      const it = setInterval(() => {
+        if (window.account?.address) {
+          resolve(window?.account.address);
+          return clearInterval(it);
+        }
+      }, 700);
+
+      connect(window.walletName);
+    });
+
+    window.showNotification = showNotification;
+
+    window.ipfs = {
+      upload: saveScene,
+      download: loadScene,
+    }
+
+    window.contracts = {
+      read: read,
+      write: write,
+    }
+
+    return () => {
+      window.showModal = null;
+    }
+
+  }, []);
+
+
+  /*
+    const macros = new Map([
+      ['Macro1', [
+        { name: 'Macro1_1', hotkey: 'F1' },
+        { name: 'Macro1_2', hotkey: 'F2' },
+      ]],
+      ['Macro2', [
+        { name: 'Macro2_1', hotkey: 'F3' },
+      ]],
+      // ... Define more macros here
+    ]);
+  */
+  // Function to handle F key button click
+  const handleFKeyClick = async (fKey) => {
+    setLoadingMacro(fKey);
+    setSelectedFKey(fKey);
+    await onMacrosInvoked(fKey); // If onMacrosInvoked is async
+    setLoadingMacro(null);
+  };
 
   const openDialog = (dialog) => {
     setCurrentDialog(dialog);
@@ -32,14 +157,14 @@ const GalaxyUI = ({ excalidrawRef }) => {
   const closeDialog = () => {
     setCurrentDialog(null);
   };
-
-  const showNotification = (message) => {
-    setNotifications((prevNotifications) => [...prevNotifications, message]);
-    setTimeout(() => {
-      setNotifications((prevNotifications) => prevNotifications.slice(1));
-    }, 5000);
-  };
-
+  /*
+    const showNotification = (message) => {
+      setNotifications((prevNotifications) => [...prevNotifications, message]);
+      setTimeout(() => {
+        setNotifications((prevNotifications) => prevNotifications.slice(1));
+      }, 5000);
+    };
+  */
   const showError = (message) => {
     setErrors((prevErrors) => [...prevErrors, message]);
     setTimeout(() => {
@@ -85,18 +210,89 @@ const GalaxyUI = ({ excalidrawRef }) => {
     }
   }, [data]);
 
-  const handleConnectWallet = async () => {
-    showNotification("Connecting wallet...");
-    const [error, accounts] = await enableExtension();
+  const handleConnectWallet = () => {
+    const installedWallets = Object.keys(window.injectedWeb3);
 
-    if (accounts && accounts[0]) {
-      const walletName = accounts[0].meta ? accounts[0].meta.name : accounts[0].address;
-      showNotification("Wallet connected: " + walletName);
-    } else {
-      showError("Connection failed: " + error);
+    if (installedWallets.length === 0) {
+      // Show modal message with instructions to install the first wallet from the list
+      showModal({
+        title: "Install Wallet",
+        description: wallets[0].noInstalledMessage,
+        callback: () => { }
+      });
+    } else if (installedWallets.length === 1) {
+      // Skip selecting wallet, just do connect
+      const singleInstalledWallet = wallets.find(wallet => wallet.extensionName === installedWallets[0]);
+
+      if (singleInstalledWallet) {
+        showNotification({
+          type: "info",
+          message: `Connecting to ${singleInstalledWallet.title}...`
+        });
+
+        connect(singleInstalledWallet.extensionName)
+        // .then(() => {
+        //   showNotification({
+        //     type: "success",
+        //     message: "Successfully connected to the wallet."
+        //   });
+        // })
+        // .catch((error) => {
+        //   showNotification({
+        //     type: "error",
+        //     message: `Failed to connect to the wallet: ${error.message}`
+        //   });
+        // });
+      } else {
+        showNotification({
+          type: "error",
+          message: "Installed wallet is not supported."
+        });
+      }
+
+    } else { // For multiple installed wallets
+      const walletList = wallets.map((wallet, index) => `${index + 1}. ${wallet.title}`).join('\n');
+
+      showModal({
+        title: "Connect to Wallet",
+        description: "Select a wallet by mentioning its number:",
+        callback: (userInput) => {
+          const selectedWalletIndex = parseInt(userInput, 10) - 1;
+
+          if (wallets[selectedWalletIndex]) {
+            showNotification({
+              type: "info",
+              message: `Connecting to ${wallets[selectedWalletIndex].title}...`
+            });
+
+            connect(wallets[selectedWalletIndex].extensionName)
+              .then(() => {
+                showNotification({
+                  type: "success",
+                  message: "Successfully connected to the wallet."
+                });
+              })
+              .catch((error) => {
+                showNotification({
+                  type: "error",
+                  message: `Failed to connect to the wallet: ${error.message}`
+                });
+              });
+          } else {
+            showNotification({
+              type: "error",
+              message: "Invalid wallet selection. Please try again."
+            });
+          }
+        },
+        // Adding the inputField for user input in modal
+        inputField: {
+          value: '',  // initial value
+          placeholder: walletList,  // showing list as placeholder
+        }
+      });
     }
-    closeDialog();
-  }
+  };
 
   const handleLoadFromIPFS = async () => {
     if (sceneHash) {
@@ -144,149 +340,30 @@ const GalaxyUI = ({ excalidrawRef }) => {
 
   return (<div>
     <div className={styles.topLeft}>
-      <button data-test="addButton" className={styles.customButton} onClick={() => {
-        if (accounts && accounts[0]) {
-          openDialog(Dialogs.SaveScene);
-        } else {
-          showError(`Required Polkadot Wallet`)
-          openDialog(Dialogs.ConnectWallet);
-        }
-      }}>
-        <img src={AddIcon} alt="Add" />
-      </button>
-      <button data-test="loadButton" className={styles.customButton} onClick={() => openDialog(Dialogs.GetScene)}>
-        <img src={GetIcon} alt="Get" />
-      </button>
     </div>
-
 
     <div className={styles.topRight}>
-      {accounts && (
-        <button data-test="infoButton" className={styles.customButton} onClick={() => openDialog(Dialogs.Info)}>
-          <img src={InfoIcon} alt="Info" />
-        </button>
-      )}
-      {!accounts && (
-        <button data-test="walletButton" className={styles.customButton} onClick={() => openDialog(Dialogs.ConnectWallet)}>
-          <img src={WalletIcon} alt="Wallet" />
-        </button>
-      )}
     </div>
 
-    {currentDialog === Dialogs.SaveScene && (
-      <div data-test="saveDialog" className={styles.dialogCentered}>
-        <h3>Save scene</h3>
-        <div className={styles.dialogContent}>
-          <label>
-            <input
-              type="text"
-              value={sceneName}
-              placeholder="Scene Name"
-              onChange={(e) => setSceneName(e.target.value)}
-            />
-          </label>
-          <button data-test="saveButton" className={styles.customButton} onClick={handleSaveToIPFS}>
-            Save to IPFS
+    <div className={styles.bottomCenter}>
+      {macros && Array.from(macros.entries()).map(([macroName, macroList]) => {
+        return (
+          <button
+            data-testid={`macro-button-${macroName}`}
+            key={macroName}
+            className={selectedFKey === macroName ? styles.selectedFKeyButton : styles.fKeyButton}
+            onClick={() => handleFKeyClick(macroName)}
+            title={`Hotkey: ${macroList[0].hotkey}`}
+          >
+            <div className={styles.macroName}>{macroName}</div>
+            {loadingMacro === macroName ? (
+              <div data-testid={`loading-indicator-${macroName}`} className={styles.loadingIndicator}></div>
+            ) : (
+              <div className={styles.selectionBadge}>{`x${macroList.length}`}</div>
+            )}
           </button>
-          <button data-test="closeButton" className={styles.customButton} onClick={closeDialog}>
-            Cancel
-          </button>
-
-        </div>
-      </div>
-    )}
-
-    {currentDialog === Dialogs.GetScene && (
-      <div data-test="loadDialog" className={styles.dialogCentered}>
-        <h3>Load scene</h3>
-        <div className={styles.dialogContent}>
-          <label>
-            <input
-              type="text"
-              placeholder="Scene Hash"
-              value={sceneHash}
-              onChange={(e) => setSceneHash(e.target.value)}
-            />
-          </label>
-          <button data-test="getSceneButton" className={styles.customButton} onClick={handleLoadFromIPFS}>
-            Load from IPFS
-          </button>
-          <button data-test="cancelButton" className={styles.customButton} onClick={closeDialog}>
-            Cancel
-          </button>
-        </div>
-      </div>
-    )}
-
-    {currentDialog === Dialogs.Info && (
-      <div data-test="infoDialog" className={styles.dialogCentered}>
-        <h3>Scene Details</h3>
-        <div className={styles.dialogContent}>
-          {
-            accounts && accounts[0] && <>
-              <p>Connected Wallet:</p>
-              <p>{accounts[0].meta?.name} - {accounts[0]?.address}</p>
-            </>
-          }
-          {sceneHash && <>
-            <p>Scene Hash:</p>
-            <p data-test="ipfsHash">{sceneHash}</p>
-          </>}
-          {
-            data && data.name && (
-              <>
-                <p>Scene Name:</p>
-                <p>{data.name}</p>
-              </>
-            )
-          }
-          {data && data.source && (
-            <>
-              <p>Scene Author:</p>
-              <p>{data.source}</p>
-            </>
-          )}
-          <button data-test="closeButton" className={styles.customButton} onClick={closeDialog}>
-            Close
-          </button>
-        </div>
-      </div>
-    )}
-
-    {currentDialog === Dialogs.ConnectWallet && (
-      <div data-test="connectDialog" className={styles.dialogCentered}>
-        <h3>Connect Wallet</h3>
-        <div className={styles.dialogContent}>
-          <p>Please connect your Polkadot wallet to save and share scenes.</p>
-          <button data-test="connectButton" className={styles.customButton} onClick={handleConnectWallet}>
-            Connect Wallet
-          </button>
-          <button data-test="cancelButton" className={styles.customButton} onClick={closeDialog}>
-            Cancel
-          </button>
-        </div>
-      </div>
-    )}
-
-    <div
-      className={styles.bottomRight}
-    >
-      {notifications.map((notification, index) => (
-        <div
-          key={index}
-          className={styles.notification}
-        >
-          {notification}
-        </div>
-      ))}
-      {errors.map((error, index) => (
-        <div
-          key={index}
-          className={styles.error}
-        >
-          {error}
-        </div>
-      ))}
+        );
+      })}
     </div>
   </div>
   );
