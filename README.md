@@ -100,6 +100,10 @@ To release the project, execute the following commands in sequence:
 pnpm release-first
 ```
 
+If only made changes to frontend, this is only step necessary for update.
+
+dist submodule includes the changes committed, and whenever user reopens app, it will fetch the recent assets.
+
 2. **Compile for macOS:**
 
 ```bash

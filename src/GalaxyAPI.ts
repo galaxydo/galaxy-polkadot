@@ -86,9 +86,13 @@ class GalaxyAPI {
     this.log(`Input received: ${JSON.stringify(input)}`, "defaultJsMacro");
     try {
       if (input.type !== "text") throw "not ok";
-      const macroSource = input.text;
+      let macroSource = input.text;
+      macroSource = macroSource.replace(/\s+/g, ' ');
 
       const parsedFunction = Function(`return ${macroSource};`)();
+
+      if (!parsedFunction) throw 'invalid input - not a function';
+
       const functionName = parsedFunction.name || "Anonymous";
 
       this.registerMacro(functionName, parsedFunction);
@@ -453,13 +457,26 @@ const layerStr = new TextDecoder().decode(layerBinary);
               }
             }
 
+            // TODO: change all linked ids as well
+            const newIds = scene.elements.map(it => it.id).reduce((it, xt) => {
+              it[xt] = nanoid();
+            }, {});
+
             const newElements = window.convertToExcalidrawElements(scene.elements.map(it => {
-              return {
-                ...it,
-                id: nanoid(),
+              if (typeof it == 'arrow') {
+                if (it.startBinding) {
+                  it.startBinding.elementId = newIds[it.startBinding.elementId];
+                }
+                if (it.endBinding) {
+                  it.endBinding.elementId = newIds[it.endBinding.elementId];
+                }
+                for (let i = 0; i < it.boundElements.length; i++) {
+                  it.boundElements[i].id = newIds[it.boundElements[i].id];
+                }
               }
+              return it;
             }));
-            
+
             // Extracting the x, y coordinates from the user-defined frame
             const frameX = input.x;
             const frameY = input.y;
