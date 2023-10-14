@@ -76,7 +76,15 @@ Time:        28.367 s
 
 When focusing on the backend aspect of the project (specifically the `main.ts`), follow these steps:
 
-1. **Start the backend development server:**
+1. **Update submodules:**
+
+Since git submodules are always pointing to specific commit, its' important to ensure you have all of them synchronized to the recent main branch, before running backend:
+
+```bash
+pnpm pull-submodules
+```
+
+2. **Start the backend development server:**
 
 ```bash
 pnpm dev-deno
@@ -84,10 +92,42 @@ pnpm dev-deno
 
 If you made modifications in the frontend while working on the backend, you'll need to rebuild both together to reflect the frontend changes:
 
-2. **Rebuild both frontend and backend together:**
+3. **Rebuild both frontend and backend together:**
 
 ```bash
 pnpm dev-desktop
+```
+
+### excalidraw-assets
+
+In production mode, backend will load recent frontend build from public repository, and then spawn a browser window.
+
+In development mode, instead it will read frontend build locally from ./dist submodule folder.
+
+In case, after running dev-desktop, it does not produce excalidraw-assets in ./dist folder as expected, run the following command to copy it manually from recent release:
+
+```
+cp ./node_modules/@galaxydo/excalidraw/dist/excalidraw-assets ./dist
+```
+
+Accordingly, if you made changes in excalidraw submodule, make sure to rebuild it.
+
+```
+cd excalidraw/src/packages/excalidraw && yarn build:umd
+```
+
+Then publish a new release to registry, and update dependency in package.json to your version.
+
+### webui
+
+In production mode, **deno-webui** package loads static library **webui** from public a repository, resolving to the file corresponding to the target platform.
+
+In development mode, local library path must be specified in [main.ts](https://github.com/7flash/galaxy-desktop-app/blob/9763b504caf094f1f4000300185c9594a05b560e/main.ts#L8)
+
+In case, the path of webui compiled library on your platform differs from default path, you must compile it manually (make sure to have cpp installed) and then update libPath parameter above.
+
+```
+cd desktop/webui && make
 ```
 
 ## Release
@@ -119,6 +159,14 @@ pnpm release-third
 Executing these commands in order ensures that the project is built, compiled, and prepared for release appropriately.
 
 ## Docker (Frontend)
+
+**Docker Limitations:**
+
+Docker image only suitable for running and testing frontend app. It also allows to define and execute frontend-side JS macros, including "publish" macro which invokes wallet transaction to publish layer.
+
+But since backend is designed to launch a default user browser installed on local machine, docker is not suitable for running backend app.
+
+In case of testing backend-side Deno macros, such as "save" macro to save layers in persistent local database, please either follow instructions above to run full app locally, or simply install recent release build, which already includes deno engine (but does not include chromium and still depends on user default browser and its default profile with installed wallet extension) 
 
 **Build Image:**
 ```bash
@@ -159,6 +207,11 @@ The Galaxy Contract has been deployed on the Rococo testnet.
    ```
 
 After new deployment, ensure to update the address in [GalaxyAPI.ts](https://github.com/7flash/galaxy-polkadot/blob/a551fc37d0c91c453aa6d04e40fd5d66edb0bb02/src/GalaxyAPI.ts#L43).
+
+### Additional notes
+
+**Layers padding**
+When loading a scene into a new frame, notice that all elements coordinates are adjusted to fit into the frame, adjusting the frame size as well if needed, also clipping an empty space surronding elements in the original frame. In case if its' crucial to maintain the padding, make sure to draw an additional rectangle container around the elements inside of the frame with needed padding when publishing.
 
 ## License
 
