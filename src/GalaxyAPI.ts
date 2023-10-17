@@ -315,34 +315,22 @@ class GalaxyAPI {
 
           this.log('metadata' + metadata, 'handlePublish');
 
-          const { gasRequired, continueWithTransaction, caller } = await window.contracts.write({
-            address: galaxyContractAddress,
-            method: 'createLayer',
-            args,
-            metadata,
-          });
-
           window.showModal({
             title: "Confirm Transaction",
-            description: `Gas Cost: ${gasRequired}\nIPFS Link: ${ipfsLink}\nLayer Name: ${layerName}`,
+            description: `IPFS Link: ${ipfsLink}\nLayer Name: ${layerName}`,
             callback: async () => {
-              await continueWithTransaction({
-                onSuccess: (trxId) => {
-                  window.showNotification({ message: `${trxId} transaction`, type: 'info' });
-                  const galaxyLink = `galaxy://${caller}/${layerName}`;
-                  window.showModal({
-                    title: galaxyLink,
-                    description: 'Transaction ID ' + trxId,
-                  })
-                  return resolve(galaxyLink);
-                },
-                onStatus: (status) => {
-                  window.showNotification({ message: `${status} transaction`, type: 'info' });
-                  window.showModal({
-                    title: 'Transaction Status ' + status,
-                  })
-                },
+              const { caller } = await window.contracts.write({
+                address: galaxyContractAddress,
+                method: 'createLayer',
+                args,
+                metadata,
               });
+
+              window.showModal({
+                title: `galaxy://${caller}/${layerName}`,
+                description: 'Transaction has been submitted',
+              })
+              return resolve(`galaxy://${caller}/${layerName}`);
             }
           });
         } catch (error) {
@@ -353,7 +341,7 @@ class GalaxyAPI {
 
       window.showModal({
         title: "Connect Wallet",
-        description: `Click Confirm to invoke ${window.walletName} wallet extension`,
+        description: `Click Confirm to invoke Internet Identity`,
         callback: async () => {
           await window.connect();
           window.showModal({
@@ -373,7 +361,6 @@ class GalaxyAPI {
       })
     });
   }
-
   private async defaultOpenMacro(input: ExcalidrawElement): Promise<ExcalidrawElement[]> {
     this.log(`Input received: ${JSON.stringify(input)}`, "defaultOpenMacro");
 
@@ -459,7 +446,7 @@ const layerStr = new TextDecoder().decode(layerBinary);
                 id: nanoid(),
               }
             }));
-            
+
             // Extracting the x, y coordinates from the user-defined frame
             const frameX = input.x;
             const frameY = input.y;

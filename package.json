@@ -18,6 +18,8 @@
     "pull-submodules": "git -C contract checkout main && git -C contract pull origin main && git -C desktop checkout main && git -C desktop pull origin main && git -C desktop/deno-webui checkout main && git -C desktop/deno-webui pull origin main && git -C desktop/dynamic-import checkout main && git -C desktop/dynamic-import pull origin main && git -C desktop/installer checkout main && git -C desktop/installer pull origin main && git -C desktop/webui checkout main && git -C desktop/webui pull origin main && git -C dist checkout main && git -C dist pull origin main && git -C excalidraw checkout master && git -C excalidraw pull origin master"
   },
   "dependencies": {
+    "@dfinity/agent": "^0.19.3",
+    "@dfinity/auth-client": "^0.19.3",
     "@excalidraw/excalidraw": "npm:@galaxydo/excalidraw@latest",
     "@galaxydo/excalidraw": "latest",
     "@galaxydo/excalidraw-utils": "0.1.2-23.8.18",
