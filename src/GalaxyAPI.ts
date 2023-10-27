@@ -18,6 +18,8 @@ type MacroFunction = (
 //   }
 // }
 
+export const defaultMacros = ['js', 'python', 'deno', 'save', 'publish', 'open', 'gpt3.5', 'gpt4', 'sd'];
+
 class GalaxyAPI {
   private macros: Record<string, MacroFunction>;
   private callbacks: Record<string, Function>;
@@ -463,7 +465,8 @@ const layerStr = new TextDecoder().decode(layerBinary);
             }, {});
 
             const newElements = window.convertToExcalidrawElements(scene.elements.map(it => {
-              if (typeof it == 'arrow') {
+
+              if (it.type == 'arrow') {
                 if (it.startBinding) {
                   it.startBinding.elementId = newIds[it.startBinding.elementId];
                 }
@@ -474,6 +477,13 @@ const layerStr = new TextDecoder().decode(layerBinary);
                   it.boundElements[i].id = newIds[it.boundElements[i].id];
                 }
               }
+              if (it.frameId) {
+                it.frameId = newIds[it.frameId];
+              }
+              if (it.id) {
+                it.id = newIds[it.id];
+              }
+
               return it;
             }));
 

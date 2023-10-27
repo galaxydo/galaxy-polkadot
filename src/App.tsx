@@ -1,9 +1,7 @@
-
-
 import { useRef, useEffect, useState, useMemo } from "react";
 import { Excalidraw, convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import GalaxyUI from "./GalaxyUI";
-import GalaxyAPI from "./GalaxyAPI";
+import GalaxyAPI, { defaultMacros } from "./GalaxyAPI";
 import { AppState, BinaryFileData, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
 import { ExcalidrawElement, ExcalidrawFrameElement, ExcalidrawTextElement, NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
 import throttle from "lodash.throttle";
@@ -15,6 +13,19 @@ import { NotificationContext, NotificationProvider } from './NotificationContext
 // import * as  transform from '../../../aug14/excalidraw/src/data/transform';
 
 // import { convertToExcalidrawElements } from "@galaxydo/excalidraw-utils";
+
+import { defaultProviders } from "@connect2ic/core/providers"
+import { createClient } from "@connect2ic/core"
+import { Connect2ICProvider } from "@connect2ic/react"
+import "@connect2ic/core/style.css"
+// import * as counter from "canisters/counter"
+
+const client = createClient({
+  canisters: {
+    // counter,
+  },
+  providers: defaultProviders,
+})
 
 console.log('convertToExcalidrawElements', convertToExcalidrawElements);
 
@@ -159,6 +170,15 @@ export default function App() {
     // Convert the array to a map for quicker lookups
     const elementMap = Object.fromEntries(ea.getSceneElements().map(e => [e.id, e]));
 
+    const addMacro = (macroName, arrow) => {
+      if (!newSelectedMacros.has(macroName)) newSelectedMacros.set(macroName, []);
+      newSelectedMacros.get(macroName).push({
+        'name': macroName,
+        'inputFrom': arrow.startBinding.elementId,
+        'outputTo': arrow.endBinding?.elementId,
+      })
+    }
+
     for (const element of selectedEls) {
       // Check for arrows
       if (element.type === 'text' && element.boundElements) {
@@ -167,14 +187,19 @@ export default function App() {
           if (arrow?.type === 'arrow' && arrow?.startBinding?.elementId === element.id) {
             const macroName = getArrowLabel(arrow, elementMap);
             if (macroName) {
-              if (!newSelectedMacros.has(macroName)) newSelectedMacros.set(macroName, []);
-
-              const macroDetails = {
-                'name': macroName,
-                'inputFrom': arrow.startBinding.elementId,
-                'outputTo': arrow.endBinding?.elementId,
-              };
-              newSelectedMacros.get(macroName).push(macroDetails);
+              if (defaultMacros.includes(macroName)) {
+                if (!newSelectedMacros.has(macroName)) newSelectedMacros.set(macroName, []);
+                const macroDetails = {
+                  'name': macroName,
+                  'inputFrom': arrow.startBinding.elementId,
+                  'outputTo': arrow.endBinding?.elementId,
+                };
+                newSelectedMacros.get(macroName).push(macroDetails);
+              } else {
+                addMacro('gpt4', arrow);
+                addMacro('gpt3.5', arrow);
+                addMacro('sd', arrow);
+              }
             }
           }
         }
@@ -215,8 +240,12 @@ export default function App() {
     const ea = excalidrawRef?.current;
     if (!ea) return;
 
-    const m = selectedMacros?.get(macroName);
-    if (!m) return;
+    let m = selectedMacros?.get(macroName);
+    if (!m) {
+      m = 'AI';
+      return;
+      // let's consider the line text to be a prompt into AI macro
+    }
 
     const updateOutputText = (outputEl, text: string) => {
       console.log('!', 'updateOutputText', outputEl.id, text);
@@ -322,15 +351,17 @@ export default function App() {
   }
 
   return (
-    <UseInkProvider config={useInkConfig}>
-      <div className="main">
-        <NotificationProvider>
-          {excalidrawComponent}
-          <ModalProvider>
-            <GalaxyUI excalidrawRef={excalidrawRef} macros={selectedMacros} onMacrosInvoked={onMacrosInvoked} />
-          </ModalProvider>
-        </NotificationProvider>
-      </div>
-    </UseInkProvider>
+    <Connect2ICProvider client={client}>
+      <UseInkProvider config={useInkConfig}>
+        <div className="main">
+          <NotificationProvider>
+            {excalidrawComponent}
+            <ModalProvider>
+              <GalaxyUI excalidrawRef={excalidrawRef} macros={selectedMacros} onMacrosInvoked={onMacrosInvoked} />
+            </ModalProvider>
+          </NotificationProvider>
+        </div>
+      </UseInkProvider>
+    </Connect2ICProvider>
   );
 }
