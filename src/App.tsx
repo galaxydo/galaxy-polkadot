@@ -23,6 +23,7 @@ type SelectedMacro = {
   name: string;
   inputFrom: string;
   outputTo: string;
+  arrow: string;
   hotkey?: string;
 };
 
@@ -134,13 +135,21 @@ export default function App() {
   ), [excalidrawRef]);
 
   const getArrowLabel = (arrow, elementMap) => {
-    if (arrow.boundElements) {
-      const labelElement = elementMap[arrow.boundElements[0].id];
-      if (labelElement && labelElement.text.startsWith('=')) {
-        return labelElement.text.substring(1);
+    const first = () => {
+      if (arrow.boundElements) {
+        const labelElement = elementMap[arrow.boundElements[0].id];
+        if (labelElement) {
+          if (labelElement.text.startsWith('=')) {
+            return labelElement.text.substring(1);
+          } else {
+            return labelElement.text;
+          }
+        }
       }
+      return null;
     }
-    return null;
+    let it = first();
+    return it;
   }
 
   const onPointerUpdate = debounce(() => {
@@ -159,25 +168,52 @@ export default function App() {
     // Convert the array to a map for quicker lookups
     const elementMap = Object.fromEntries(ea.getSceneElements().map(e => [e.id, e]));
 
+    const addMacro = (macroName, arrow, boundEl) => {
+      if (!newSelectedMacros.has(macroName)) newSelectedMacros.set(macroName, []);
+
+      const macroDetails = {
+        'name': macroName,
+        'inputFrom': arrow.startBinding.elementId,
+        'outputTo': arrow.endBinding?.elementId,
+        'arrow': boundEl.id,
+      };
+
+      newSelectedMacros.get(macroName).push(macroDetails);
+    }
+
     for (const element of selectedEls) {
       // Check for arrows
       if (element.type === 'text' && element.boundElements) {
         for (const boundEl of element.boundElements) {
           const arrow = elementMap[boundEl.id];
           if (arrow?.type === 'arrow' && arrow?.startBinding?.elementId === element.id) {
-            const macroName = getArrowLabel(arrow, elementMap);
+            let label = getArrowLabel(arrow, elementMap);
+            let macroName = label.includes('(') ? label.substr(0, label.indexOf('(')) : label;
             if (macroName) {
-              if (!newSelectedMacros.has(macroName)) newSelectedMacros.set(macroName, []);
+              if (window.ga.getMacro(macroName)) {
+                // its a macro
+                addMacro(macroName, arrow, boundEl);
+              } else {
+                // its a prompt
+                const outputEl = ea.getSceneElements().find(it => it.id == arrow.endBinding?.elementId);
+                if (outputEl?.type == 'text') {
+                  // no actually just use name as an actor!
+                  addMacro(macroName, arrow, boundEl);
+                  // addMacro('gpt4', arrow, boundEl);
+                  // addMacro('gpt3', arrow, boundEl);
+                } else if (outputEl?.type == 'image') {
+                  addMacro('sd', arrow, boundEl);
+                } else {
+                  macroName = null;
+                }
+                // label = `gpt4("${label}")`;
+              }
 
-              const macroDetails = {
-                'name': macroName,
-                'inputFrom': arrow.startBinding.elementId,
-                'outputTo': arrow.endBinding?.elementId,
-              };
-              newSelectedMacros.get(macroName).push(macroDetails);
             }
           }
         }
+      } else if (element.type == 'image') {
+        // nevermind
       }
       console.log('!', 'customData', JSON.stringify(element.customData));
       // Check for customData field with macros
@@ -236,15 +272,23 @@ export default function App() {
       });
     };
 
+    const elementMap = Object.fromEntries(ea.getSceneElements().map(e => [e.id, e]));
+
     for (const it of m) {
-      const inputEl = ea.getSceneElements().find(jt => jt.id === it.inputFrom);
-      let outputEl = ea.getSceneElements().find(jt => jt.id === it.outputTo);
+      const inputEl = elementMap[it.inputFrom]; // ea.getSceneElements().find(jt => jt.id === it.inputFrom);
+      let outputEl = elementMap[it.outputTo]; // ea.getSceneElements().find(jt => jt.id === it.outputTo);
       if (!inputEl) throw 'no input element';
       console.log('!', 'outputEl', JSON.stringify(outputEl));
       if (!outputEl) throw 'no output element';
 
       try {
-        let updatedEl = await window.ga.executeMacro(macroName, inputEl);
+        const label = getArrowLabel(elementMap[it.arrow], elementMap);
+        let updatedEl = '';
+        try {
+          updatedEl = await window.ga.executeMacro(macroName, inputEl, label);        
+        } catch (err) {
+          updatedEl = `${err.toString()}`;
+        }
         if (typeof updatedEl == 'number') {
           updatedEl = `${updatedEl}`;
         }

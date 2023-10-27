@@ -128,7 +128,7 @@ In development mode, instead it will read frontend build locally from ./dist sub
 In case, after running dev-desktop, it does not produce excalidraw-assets in ./dist folder as expected, run the following command to copy it manually from recent release:
 
 ```
-cp ./node_modules/@galaxydo/excalidraw/dist/excalidraw-assets ./dist
+cp -rf ./node_modules/@galaxydo/excalidraw/dist/excalidraw-assets ./dist
 ```
 
 Accordingly, if you made changes in excalidraw submodule, make sure to rebuild it.

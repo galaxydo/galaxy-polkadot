@@ -4,7 +4,8 @@ import { nanoid } from "nanoid";
 
 type MacroFunction = (
   input: ExcalidrawElement,
-) => Promise<ExcalidrawElement[]>;
+  argument: string,
+) => Promise<ExcalidrawElement[] | string>;
 
 // export class MacroRegistry {
 //   registerMacro(name, fn) {
@@ -39,6 +40,9 @@ class GalaxyAPI {
     this.registerMacro("save", this.defaultSaveMacro);
     this.registerMacro("open", this.defaultOpenMacro);
     this.registerMacro("publish", this.defaultPublishMacro);
+    this.registerMacro("gpt4", this.defaultGpt4Macro);
+    this.registerMacro("gpt3", this.defaultGpt3Macro);
+    // this.registerMacro("sd", this.defaultSdMacro);
 
     this.galaxyContract = '5E1zfVZmokEX29W9xVzMYJAzvwnXWE7AVcP3d1rXzWhC4sxi';
     this.galaxyMetadata = 'https://raw.githubusercontent.com/7flash/galaxy-polkadot-contract/main/galaxy.json';
@@ -68,21 +72,64 @@ class GalaxyAPI {
   async executeMacro(
     name: string,
     input: ExcalidrawElement,
+    argument: string,
   ): Promise<ExcalidrawElement[]> {
     const macro = this.getMacro(name);
-    this.log(`Executing macro "${name}" with input ${JSON.stringify(input)}.`, "executeMacro");
+    this.log(`Executing macro "${name}" with input ${JSON.stringify(input)}. and argument ${argument}`, "executeMacro");
 
     if (!macro) {
       throw new Error(`Macro with name ${name} is not registered.`);
     }
 
-    const result = await macro(input);
+    const result = await macro(input, argument);
     this.log(`Execution result for "${name}": ${JSON.stringify(result)}`, "executeMacro");
 
     return result;
   }
 
-  private defaultJsMacro(input: ExcalidrawElement): ExcalidrawElement[] {
+  private constructGptScript(model: string, key: string): string {
+    // note, input and argument are magically embedded in runtime
+    return `
+async function ai() {
+    const inputText = input.text;
+    const taskText = argument;
+
+    const { OpenAI } = await import("https://deno.land/x/openai/mod.ts");
+    const openAI = new OpenAI('${key}');
+
+    let opts = { model: '', messages: [] };
+    opts.model = '${model}';
+    opts.messages.push({ 'role': 'system', 'content': 'Execute given task over given input, respond with short result only, no comments.'});
+    opts.messages.push({ 'role': 'user', 'content': 'Input: ' + inputText });
+    opts.messages.push({ 'role': 'user', 'content': 'Task: ' + taskText });
+    const completion = await openAI.createChatCompletion(opts);
+
+    return completion.choices[0].message.content;
+}
+    `;
+  }
+
+  private async defaultGpt4Macro(input: ExcalidrawElement, argument: string): Promise<string> {
+    const gptScript = this.constructGptScript('gpt-4', window.OPENAI_KEY);
+    const result = await this.executeDeno(
+      gptScript,
+      input,
+      argument,
+    ) as string;
+    return result;
+  }
+
+  private async defaultGpt3Macro(input: ExcalidrawElement, argument: string): Promise<string> {
+    const gptScript = this.constructGptScript('gpt-3.5-turbo', window.OPENAI_KEY);
+    const result = await this.executeDeno(
+      gptScript,
+      input,
+      argument,
+    ) as string;
+    return result;
+  }
+
+  private defaultJsMacro(input: ExcalidrawElement, argument: string): string {
     this.log(`Input received: ${JSON.stringify(input)}`, "defaultJsMacro");
     try {
       if (input.type !== "text") throw "not ok";
@@ -100,7 +147,7 @@ class GalaxyAPI {
     }
   }
 
-  private defaultDenoMacro(input: ExcalidrawElement): Promise<ExcalidrawElement[]> {
+  private defaultDenoMacro(input: ExcalidrawElement, argument: string): Promise<ExcalidrawElement[]> {
     this.log(`Input received: ${JSON.stringify(input)}`, "defaultDenoMacro");
     try {
       if (input.type !== "text") throw "not ok";
@@ -180,7 +227,7 @@ class GalaxyAPI {
     };
   }
 
-  private async executeDeno(code: string, input?: ExcalidrawElement) {
+  private async executeDeno(code: string, input?: ExcalidrawElement, argument?: string) {
     return new Promise(async (resolve, reject) => {
       const taskId = nanoid();
       this.registerCallback(taskId, (denoResult) => {
@@ -194,6 +241,7 @@ class GalaxyAPI {
         taskId,
         code,
         input: typeof input == 'object' ? input : {},
+        argument: argument ?? '',
       }));
     });
   }

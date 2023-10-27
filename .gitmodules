@@ -10,3 +10,6 @@
 [submodule "dist"]
 	path = dist
 	url = git@github.com:7flash/galaxy-dist.git
+[submodule "icp_contract"]
+	path = icp_contract
+	url = git@github.com:7flash/galaxy-icp-contract.git
