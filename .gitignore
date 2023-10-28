@@ -1,3 +1,5 @@
+.openai-key
+
 # Logs
 logs
 *.log
