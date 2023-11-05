@@ -16,6 +16,11 @@ import { NotificationContext, NotificationProvider } from './NotificationContext
 
 // import { convertToExcalidrawElements } from "@galaxydo/excalidraw-utils";
 
+import { InternetIdentityProvider } from "@internet-identity-labs/react-ic-ii-auth"
+import { AuthButton } from "./AuthButton"
+
+
+
 console.log('convertToExcalidrawElements', convertToExcalidrawElements);
 
 type SelectedMacro = {
@@ -40,8 +45,10 @@ type SharedBuffer = {
 };
 
 import type { LayerData } from '../../handlers/types';
+import usePointerUpdate from "./hooks/usePointerUpdate";
+import useMacrosInvoked from "./hooks/useMacrosInvoked";
 
-const POINTER_UPDATE_TIMEOUT = 333;
+
 
 declare global {
   interface Window {
@@ -116,8 +123,10 @@ export default function App() {
   }, [excalidrawRef.current])
 
   const [macros, setMacros] = useState<Map<string, Macro>>();
-  const [selectedMacros, setSelectedMacros] = useState<Map<string, SelectedMacro[]>>();
+
   const [buffers, setBuffers] = useState<Map<string, SharedBuffer>>();
+
+  const { onPointerUpdate, selectedMacros } = usePointerUpdate();
 
   const excalidrawComponent = useMemo(() => (
     <Excalidraw
@@ -126,255 +135,24 @@ export default function App() {
       gridModeEnabled={false}
       viewModeEnabled={false}
       theme="dark"
-      onChange={(
-        elements: ExcalidrawElement[],
-        appState: AppState,
-        files: BinaryFiles,
-      ) => onPointerUpdate()}
+      onChange={onPointerUpdate}
+      validateEmbeddable={true}
     />
   ), [excalidrawRef]);
 
-  const getArrowLabel = (arrow, elementMap) => {
-    const first = () => {
-      if (arrow.boundElements) {
-        const labelElement = elementMap[arrow.boundElements[0].id];
-        if (labelElement) {
-          if (labelElement.text.startsWith('=')) {
-            return labelElement.text.substring(1);
-          } else {
-            return labelElement.text;
-          }
-        }
-      }
-      return null;
-    }
-    let it = first();
-    return it;
-  }
 
-  const onPointerUpdate = debounce(() => {
-    const ea = excalidrawRef?.current;
-    if (!ea) return;
+  const selectedMacrosRef = useRef(selectedMacros);
 
-    console.log(new Date(), ea.getSceneElements());
-
-    const elIds = ea.getAppState().selectedElementIds;
-
-    if (!elIds) return;
-
-    const selectedEls = ea.getSceneElements().filter(it => elIds[it.id] == true);
-    const newSelectedMacros = new Map<string, SelectedMacro[]>();
-
-    // Convert the array to a map for quicker lookups
-    const elementMap = Object.fromEntries(ea.getSceneElements().map(e => [e.id, e]));
-
-    const addMacro = (macroName, arrow, boundEl) => {
-      if (!newSelectedMacros.has(macroName)) newSelectedMacros.set(macroName, []);
-
-      const macroDetails = {
-        'name': macroName,
-        'inputFrom': arrow.startBinding.elementId,
-        'outputTo': arrow.endBinding?.elementId,
-        'arrow': boundEl.id,
-      };
-
-      newSelectedMacros.get(macroName).push(macroDetails);
-    }
-
-    for (const element of selectedEls) {
-      // Check for arrows
-      if (element.type === 'text' && element.boundElements) {
-        for (const boundEl of element.boundElements) {
-          const arrow = elementMap[boundEl.id];
-          if (arrow?.type === 'arrow' && arrow?.startBinding?.elementId === element.id) {
-            let label = getArrowLabel(arrow, elementMap);
-            let macroName = label.includes('(') ? label.substr(0, label.indexOf('(')) : label;
-            if (macroName) {
-              if (window.ga.getMacro(macroName)) {
-                // its a macro
-                addMacro(macroName, arrow, boundEl);
-              } else {
-                // its a prompt
-                const outputEl = ea.getSceneElements().find(it => it.id == arrow.endBinding?.elementId);
-                if (outputEl?.type == 'text') {
-                  // no actually just use name as an actor!
-                  addMacro(macroName, arrow, boundEl);
-                  // addMacro('gpt4', arrow, boundEl);
-                  // addMacro('gpt3', arrow, boundEl);
-                } else if (outputEl?.type == 'image') {
-                  addMacro('sd', arrow, boundEl);
-                } else {
-                  macroName = null;
-                }
-                // label = `gpt4("${label}")`;
-              }
-
-            }
-          }
-        }
-      } else if (element.type == 'image') {
-        // nevermind
-      }
-      console.log('!', 'customData', JSON.stringify(element.customData));
-      // Check for customData field with macros
-      if (element.customData && element.customData.macros) {
-        // Log the current element being processed
-        console.log('Processing element:', element.id);
-
-        for (const macroName in element.customData.macros) {
-          console.log('!', 'macroName', macroName);
-
-          // This condition seems redundant since we're already iterating through macroNames. Consider removing it.
-          // if (!element.customData.macros[macroName]) continue;
-
-          if (!newSelectedMacros.has(macroName)) newSelectedMacros.set(macroName, []);
-
-          const macroDetails = {
-            'name': macroName,
-            'inputFrom': element.id,
-            'outputTo': element.id, // Note: As mentioned, you might need to decide how to determine the output element.
-          };
-
-          console.log('!', 'macroDetails', JSON.stringify(macroDetails));
-          newSelectedMacros.get(macroName).push(macroDetails);
-        }
-      }
-    }
-
-    console.log('!', 'newSelectedMacros', JSON.stringify([...newSelectedMacros]));
-
-    setSelectedMacros(newSelectedMacros);
-
-  }, POINTER_UPDATE_TIMEOUT);
-
-  async function onMacrosInvoked(macroName: string) {
-    const ea = excalidrawRef?.current;
-    if (!ea) return;
-
-    const m = selectedMacros?.get(macroName);
-    if (!m) return;
-
-    const updateOutputText = (outputEl, text: string) => {
-      console.log('!', 'updateOutputText', outputEl.id, text);
-      ea.updateScene({
-        elements: ea.getSceneElements().map(it => {
-          if (it.id === outputEl.id) {
-            return {
-              ...it,
-              'originalText': text,
-              'rawText': text,
-              'text': text,
-              'version': it.version + 1,
-            };
-          }
-          return it;
-        })
-      });
-    };
-
-    const elementMap = Object.fromEntries(ea.getSceneElements().map(e => [e.id, e]));
-
-    for (const it of m) {
-      const inputEl = elementMap[it.inputFrom]; // ea.getSceneElements().find(jt => jt.id === it.inputFrom);
-      let outputEl = elementMap[it.outputTo]; // ea.getSceneElements().find(jt => jt.id === it.outputTo);
-      if (!inputEl) throw 'no input element';
-      console.log('!', 'outputEl', JSON.stringify(outputEl));
-      if (!outputEl) throw 'no output element';
-
-      try {
-        const label = getArrowLabel(elementMap[it.arrow], elementMap);
-        let updatedEl = '';
-        try {
-          updatedEl = await window.ga.executeMacro(macroName, inputEl, label);        
-        } catch (err) {
-          updatedEl = `${err.toString()}`;
-        }
-        if (typeof updatedEl == 'number') {
-          updatedEl = `${updatedEl}`;
-        }
-        console.log('!', 'updatedEl', updatedEl)
-        console.log('!', 'els-before', JSON.stringify(ea.getSceneElements().map(it => it.id)));
-        const elements =
-          ea.getSceneElements().map(it => {
-            if (it.id === outputEl.id) {
-              console.log('!', 'update-from', JSON.stringify(it));
-              if (updatedEl instanceof Array) {
-                if (it.type == 'frame') {
-                  // insert new elements into the frame
-                  const newFrame = updatedEl.find(jt => jt.id == outputEl.id);
-                  if (!newFrame) throw 'should return elements with frame';
-                  it = [{
-                    ...outputEl,
-                    ...newFrame,
-                  }, ...updatedEl.filter(jt => jt.id != newFrame.id).map(jt => ({
-                    ...jt,
-                    frameId: outputEl.id, // assign to frame
-                  }))]
-                }
-              } else if (typeof updatedEl == 'object') {
-                it = {
-                  ...it,
-                  ...updatedEl,
-                  'version': it.version + 1,
-                }
-              } else if (typeof updatedEl == 'string') {
-                if (it.type == 'frame') {
-                  it = {
-                    ...it,
-                    name: updatedEl,
-                    'version': it.version + 1,
-                  }
-                } else if (it.type == 'text') {
-                  it = {
-                    ...it,
-                    text: updatedEl,
-                    originalText: updatedEl,
-                  }
-                }
-              }
-              console.log('!', 'update-to', JSON.stringify(it));
-            }
-
-            return it;
-          }).reduce((prev, curr) => {
-            if (curr instanceof Array) {
-              return [...prev, ...curr];
-            }
-            return [...prev, curr];
-          }, []);
-        setTimeout(() => {
-          // when we open frame it disappears some times ?!
-          ea.updateScene({
-            elements: elements
-          });
-          // if (ea.getSceneElements().length == 0) {
-          //   debugger;
-          //   ea.updateScene({
-          //     elements,
-          //   })
-          // }
-        }, 100);
-        console.log('!', 'els-after', JSON.stringify(ea.getSceneElements().map(it => it.id)));
-      } catch (err) {
-        console.error('!', 'App macro error', macroName, err.toString());
-        window.showNotification({
-          type: 'error',
-          message: err.toString(),
-        })
-      }
-    }
-  }
+  const { onMacrosInvoked } = useMacrosInvoked(excalidrawRef, selectedMacros);
 
   return (
-    <UseInkProvider config={useInkConfig}>
-      <div className="main">
-        <NotificationProvider>
-          {excalidrawComponent}
-          <ModalProvider>
-            <GalaxyUI excalidrawRef={excalidrawRef} macros={selectedMacros} onMacrosInvoked={onMacrosInvoked} />
-          </ModalProvider>
-        </NotificationProvider>
-      </div>
-    </UseInkProvider>
+    <div className="main">
+      <NotificationProvider>
+        {excalidrawComponent}
+        <ModalProvider>
+          <GalaxyUI excalidrawRef={excalidrawRef} macros={selectedMacros} onMacrosInvoked={onMacrosInvoked} />
+        </ModalProvider>
+      </NotificationProvider>
+    </div>
   );
 }

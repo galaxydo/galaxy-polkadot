@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useContext } from 'react';
-import { usePolkadotExtension } from "./hooks/use-polkadot-extension";
 import { useIPFSClient } from './hooks/use-ipfs-client';
 import styles from './GalaxyUI.module.css';
 import AddIcon from './assets/add-icon.svg';
@@ -18,6 +17,8 @@ import { Abi, ContractPromise } from 'useink/core';
 import { useApi } from 'useink';
 import { ChainId } from 'useink/chains';
 import useInteractWithContract from './hooks/useInteractWithContract';
+import { InternetIdentityProvider } from '@internet-identity-labs/react-ic-ii-auth';
+import { AuthButton } from './AuthButton';
 
 const Dialogs = {
   GetScene: 'GetScene',
@@ -31,7 +32,7 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
   const { showModal, closeModal } = useContext(ModalContext);
   const { showNotification } = useContext(NotificationContext);  // Use NotificationContext
 
-  const { accounts, enableExtension } = usePolkadotExtension();
+  // const { accounts, enableExtension } = usePolkadotExtension();
   const { data, loadScene, saveScene } = useIPFSClient();
 
   const [currentDialog, setCurrentDialog] = useState(null);
@@ -59,8 +60,8 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
   }, [account]);
 
   useEffect(() => {
-window.canisterId = 'bkyz2-fmaaa-aaaaa-qaaaq-cai'; 
-       
+    window.canisterId = 'bkyz2-fmaaa-aaaaa-qaaaq-cai';
+
     window.showModal = showModal;
 
     // window.wallets = wallets;
@@ -167,12 +168,29 @@ window.canisterId = 'bkyz2-fmaaa-aaaaa-qaaaq-cai';
     }
   }, [data]);
 
-    return (<div>
+  return (<div>
     <div className={styles.topLeft}>
     </div>
 
     <div className={styles.topRight}>
-    </div>
+      <InternetIdentityProvider
+        authClientOptions={
+          {
+            maxTimeToLive: BigInt(Date.now() + 7 * 24 * 60 * 60 * 1e9),
+            identityProvider: "https://nfid.one/authenticate/?applicationName=Galaxy-Browser",
+            windowOpenerFeatures:
+              `left=${window.screen.width / 2 - 525 / 2}, ` +
+              `top=${window.screen.height / 2 - 705 / 2},` +
+              `toolbar=0,location=0,menubar=0,width=525,height=705`,
+            onSuccess: (principal) => {
+              alert("Principal " + JSON.stringify(principal));
+              // setProvider("NFID")
+            },
+          }
+        }
+      >
+        <AuthButton reset={() => setProvider(null)} provider="NFID" />
+      </InternetIdentityProvider>    </div>
 
     <div className={styles.bottomCenter}>
       {macros && Array.from(macros.entries()).map(([macroName, macroList]) => {
