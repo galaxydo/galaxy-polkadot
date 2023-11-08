@@ -7,7 +7,7 @@
     "test-frontend": "jest tests/Galaxy.test.js",
     "dev-frontend": "vite",
     "dev-deno": "cd desktop && DEV=true deno run --allow-all --unstable main.ts",
-    "dev-desktop": "vite build && cd desktop && DEV=true deno run --allow-all --unstable main.ts",
+    "dev-desktop": "vite build && cp -r ./node_modules/@galaxydo/excalidraw/dist/excalidraw-assets ./dist && cd desktop && DEV=true deno run --allow-all --unstable main.ts",
     "excalidraw-first": "cd excalidraw/src/packages/excalidraw && yarn build:umd",
     "excalidraw-second": "cd excalidraw/src/packages/excalidraw && yarn publish",
     "excalidraw-third": "cd excalidraw && git add . && git commit -m 'up' && git push",
