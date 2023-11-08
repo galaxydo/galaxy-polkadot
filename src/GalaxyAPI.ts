@@ -117,7 +117,7 @@ async function ai() {
   private async defaultCatMacro(input: ExcalidrawElement, output: ExcalidrawElement) {
     try {
       const bit = this.getFullTree(input, output);
-      const cit = bit.join('').replace('~/Documents/', '/').replace('~/', '');
+      const cit = bit.join('').replace('~/Documents/', '/').replace('~/', '').replace(/\/\//g, '/');
       const rit = await fetch(`http://localhost:8080${cit}`)
         .then(it => it.text());
       // const xit = ea.getSceneElements().find(it => {
@@ -173,201 +173,200 @@ async function ai() {
         })
       ]
 
-      let width = output.width / dit.length;
+      let width = dit.length > 0 ? output.width / dit.length : output.width;
       let height = output.height;
       let x = output.x;
       let y = output.y;
 
       const egit = nanoid();
 
-      function first() {
-        const zit = [
-          ...ea.getSceneElements().map(it => {
-            if (it.id == output.id) {
-              // it.isDeleted = true;
-              it.groupIds = [groupId];
-            }
-            return it;
-          })
-        ];
+      let margin = input.fontSize ? input.fontSize * 1 : input.height * 2;
 
-        for (const fit of [dit[0]]) {
-          const { name, isFile, isDirectory } = fit;
+      const zit = [
+      ];
 
-          if (isFile) {
-            const kit = {
-              type: 'text',
-              id: nanoid(),
-              text: `<...>`,
-              width,
-              height,
-              groupIds: [groupId],
-              x, y,
-            };
-            const jit = {
-              type: 'arrow',
-              id: nanoid(),
-              label: {
-                text: `${name}`,
-              },
-              start: {
-                id: input.id,
-                type: input.type,
-              },
-              end: {
-                id: kit.id,
-                type: kit.type,
-              },
-              groupIds: [groupId],
-              x, y,
-            };
-            zit.push(jit);
-            zit.push(kit);
-          } else if (isDirectory) {
-            const git = {
-              type: 'text',
-              id: nanoid(),
-              text: `${name}`,
-              width,
-              height,
-              groupIds: [groupId],
-            }
-            const hit = {
-              type: 'arrow',
-              id: nanoid(),
-              // label: {
-              //   text: `${name}`,
-              // },
-              start: {
-                id: input.id,
-                type: input.type,
-              },
-              end: {
-                id: git.id,
-                type: git.type,
-              },
-              groupIds: [groupId],
-            }
-            zit.push(git);
-            zit.push(hit);
-          }
-        }
-        return zit;
+      const frameId = nanoid();
+      const mit =
+        dit.filter(it => it.isFile);
+      const groupIds = [...output.groupIds];
+      if (groupIds.length == 0) {
+        groupIds.push(nanoid());
       }
-
-      let margin = input.fontSize ?? input.height;
-      function second() {
-        const zit = [
-        ];
-        const frameId = nanoid();
-        const mit =
-          dit.filter(it => it.isFile);
-        for (const fit of mit) {
-          const igit = nanoid();
-          const kitId = nanoid();
-          const litId = nanoid();
-          const kit = {
-            type: 'text',
-            id: kitId,
-            text: `/${fit.name}`,
-            // width,
-            // height,
-            groupIds: [egit, igit],
-            frameId: frameId,
-            x, y,
-            fontSize: input.fontSize,
-            customData: {
-              macros: {
-                cat: true,
-                write: true,
-              },
-              outputTo: litId,
+      for (const fit of mit) {
+        const igit = nanoid();
+        const kitId = nanoid();
+        const litId = nanoid();
+        const kit = {
+          type: 'text',
+          id: kitId,
+          text: `${fit.name}`,
+          // width,
+          // height,
+          groupIds: [...groupIds, igit],
+          // frameId: frameId,
+          x: x,
+          y: output.y + output.height + margin,
+          fontSize: input.fontSize,
+          customData: {
+            macros: {
+              cat: true,
+              write: true,
             },
-          };
-          const akit = window.convertToExcalidrawElements([kit])[0];
-          const lit = {
-            type: 'text',
-            id: litId,
-            x,
-            y: y + akit.height,
-            // frameId: frameId,
-            groupIds: [egit, igit],
-            text: `${fit.isFile ? "<...file...content...here>" : "[--folder--]"}`,
-            fontSize: akit.fontSize > 2 ? akit.fontSize - 1 : 2,
-          }
-          const alit = window.convertToExcalidrawElements([lit])[0];
-          x += Math.max(alit.width, akit.width);
-          x += margin;
-          zit.push(kit);
-          zit.push(lit);
+            outputTo: litId,
+            parentId: output.id,
+          },
+        };
+        const akit = window.convertToExcalidrawElements([kit])[0];
+        const lit = {
+          type: 'text',
+          id: litId,
+          x: x,
+          y: akit.y + akit.height,
+          // frameId: frameId,
+          groupIds: [...groupIds, igit],
+          text: `${fit.isFile ? "<...file...content...here>" : "[--folder--]"}`,
+          fontSize: akit.fontSize > 2 ? akit.fontSize - 1 : 2,
         }
-        const kit =
-        {
-          id: frameId,
-          type: 'frame',
-          width: zit[zit.length - 1].x - zit[0].x,
-          height: output.height,
-          name: `${cit}`,
+        const alit = window.convertToExcalidrawElements([lit])[0];
+        const wit = {
+          id: nanoid(),
+          type: 'arrow',
           x: output.x,
           y: output.y,
-          // groupIds: [groupId],
+          width: kit.x - output.x,
+          height: kit.y - output.y,
+          start: {
+            type: 'text',
+            id: output.id,
+            // gap: 1,
+          },
+          end: {
+            type: 'text',
+            id: kit.id,
+            // gap: 1,
+          },
+          // label: {
+          //   text: ``,
+          // }
         };
-        // zit.push(kit);
-        const nit =
-          dit.filter(it => it.isDirectory);
-        width = kit.width / nit.length;
-        height = kit.height;
-        x = kit.x;
-        margin = kit.height;
-        y = kit.y + kit.height + margin;
-        const groupIds = [];
-        groupIds.push(egit);
-        for (const vit of nit) {
-          const ugit = nanoid();
-          const qit = {
-            id: nanoid(),
-            type: 'rectangle',
-            width, height,
-            x, y,
-            // groupIds: [ugit],
-          };
-          zit.push(qit);
-          const wit = {
-            id: nanoid(),
-            type: 'arrow',
-            x,
-            y: kit.y + kit.height,
-            width: 1,
-            height: margin,
-            start: {
-              type: 'rectangle',
-              id: output.id,
-              gap: 1,
+
+        width = Math.max(alit.width, akit.width);
+        x += width;
+        x += margin;
+
+        zit.push(kit);
+        zit.push(lit);
+        // zit.push(wit);
+      }
+      // const kit =
+      // {
+      //   id: frameId,
+      //   type: 'frame',
+      //   width: zit[zit.length - 1].x - zit[0].x,
+      //   height: output.height,
+      //   name: `${cit}`,
+      //   x: output.x,
+      //   y: output.y,
+      //   // groupIds: [groupId],
+      // };
+      // zit.push(kit);
+      const nit =
+        dit.filter(it => it.isDirectory);
+      // width = kit.width / nit.length;
+      // height = kit.height;
+      // x = kit.x;
+      // margin = kit.height;
+      // y = kit.y + kit.height + margin;
+
+      // groupIds.push(egit);
+      const xazit = zit.length > 0 ?
+        Math.max(...zit.map(ezit => ezit.x)) : input.x;
+      const weit = xazit + width - (zit[0] ? zit[0].x : input.x);
+      const eweit =
+        window.convertToExcalidrawElements([{
+          type: 'text',
+          fontSize: output.fontSize,
+          text: '-',
+          x: 0, y: 0,
+        }])[0].width;
+      const weweit = weit / eweit;
+      const text = weweit > output.text.length && output.fontSize ? '/' + '-'.repeat(weweit) : output.text;
+      let xaweit = output.width;
+      const placeholder = output.text ?? '/-------------';
+      for (const vit of nit) {
+        const ritId = nanoid();
+        const assit = nanoid();
+        const qit = {
+          id: nanoid(),
+          type: 'text',
+          text: `/${vit.name}`,
+          // text: '/-------------',
+          width: output.width,
+          height: output.height,
+          fontSize: output.fontSize,
+          x: output.x + weit + xaweit,
+          y: output.y,
+          customData: {
+            macros: {
+              ls: true,
             },
-            end: {
-              type: 'rectangle',
-              id: qit.id,
-              gap: 1,
-            },
-            label: {
-              text: `/${vit.name}`,
-            }
-          };
-          // groupIds.push(ugit);
-          x += width;
-          zit.push(wit);
+            outputTo: ritId,
+            parentId: output.id,
+          },
+          groupIds: [assit],
+          // groupIds: [ugit],
+        };
+        xaweit += qit.width;
+        zit.push(qit);
+        const rit = {
+          ...qit,
+          customData: {
+            parentId: qit.id,
+          },
+          y: qit.y + margin,
+          text: placeholder,
+          id: ritId,
+          // groupIds: [assit],
         }
-        zit.push({
-          ...output,
-          // frameId: frameId,
-          groupIds,
-          width: kit.width,
-        });
-        return zit;
+        zit.push(rit);
+        const wit = {
+          // id: nanoid(),
+          type: 'arrow',
+          x: output.x + weit,
+          y: output.y,
+          // y: kit.y + kit.height,
+          width: xaweit,
+          height: 10,
+          start: {
+            type: 'text',
+            id: output.id,
+            gap: 1,
+          },
+          // end: {
+          //   type: 'text',
+          //   id: qit.id,
+          //   gap: 1,
+          // },
+          label: {
+            text: `/${vit.name}`,
+          }
+        };
+        // groupIds.push(git);
+        // x += width;
+        // zit.push(wit);
+        // break;
       }
 
+      zit.push({
+        ...output,
+        // frameId: frameId,
+        groupIds,
+        width: weit,
+        text,
+      });
+
       const result =
-        window.convertToExcalidrawElements(second());
+        window.convertToExcalidrawElements(zit);
 
       return result;
     } catch (err) {
@@ -376,31 +375,66 @@ async function ai() {
   }
 
   private getFullTree(it: ExcalidrawElement, out: ExcalidrawElement): string[] {
-    const els = ea.getSceneElements();
+    const els = [...ea.getSceneElements()];
 
     let fullTree: string[] = [];
 
-    const getIncomingArrow = (it) =>
-      it.boundElements?.find(bit => {
+    const getIncomingArrow = (assit) =>
+      assit.boundElements?.find(bit => {
         if (bit.type == 'arrow') {
           const cit = els.find(cit => cit.id == bit.id);
-          if (cit && cit.endBinding.elementId == it.id) {
+          if (cit && cit.endBinding.elementId == assit.id) {
             return true;
           }
         }
       });
 
-    let incomingArrow = getIncomingArrow(it);
+    let xupit;
+    let incomingArrow;
 
+    incomingArrow = getIncomingArrow(it);
     if (!incomingArrow) {
-      for (const epit of it.groupIds) {
-        const upit = els.find(kupit => kupit.groupIds.includes(epit) && kupit.type == 'rectangle');
+
+      if (it?.customData?.parentId) {
+        const upit = ea.getSceneElements().find(essit => essit.id == it.customData.parentId);
         if (upit) {
-          incomingArrow = getIncomingArrow(upit);
+          if (upit?.customData?.parentId) {
+            incomingArrow = {
+              id: nanoid(),
+            }
+            els.push({
+              id: incomingArrow.id,
+              startBinding: {
+                elementId: upit.id,
+              },
+              endBinding: {
+                elementId: it.id,
+              },
+            })
+          } else {
+            incomingArrow = getIncomingArrow(upit);
+            if (upit.text) {
+              xupit = upit.text.replace(/^\/(\-)+/, '/');
+            }
+          }
+        }
+      } else {
+
+        if (!incomingArrow) {
+          for (const epit of it.groupIds) {
+            const upit = els.find(kupit => kupit.groupIds.includes(epit) && (kupit.type == 'rectangle' || (kupit.type == 'text' && kupit.text.startsWith('/'))));
+            if (upit) {
+              incomingArrow = getIncomingArrow(upit);
+
+              if (upit.text) {
+                xupit = upit.text.replace(/^\/(\-)+/, '/');
+              }
+            }
+          }
         }
       }
-    }
 
+    }
     if (incomingArrow) {
       const bit = els.find(bit => bit.id == incomingArrow.id);
       const cit = els.find(cit => cit.type == 'text' && cit.id == bit.startBinding.elementId);
@@ -410,8 +444,12 @@ async function ai() {
       }
     }
 
+    if (xupit) {
+      fullTree.push(xupit);
+    }
+
     if (it.text) {
-      fullTree.push(it.text);
+      fullTree.push(it.text.replace(/^\/(\-)+/, '/'));
     }
 
     const outgoingArrow = it.boundElements?.find(bit => {
@@ -426,12 +464,16 @@ async function ai() {
     if (outgoingArrow) {
       const bit = els.find(bit => bit.id == outgoingArrow.id);
       if (bit && bit.type == 'arrow') {
-        const cit = bit.boundElements.find(cit => cit.type == 'text');
-        if (cit) {
-          const dit = els.find(dit => dit.id == cit.id);
-          if (dit && dit.type == 'text') {
-            fullTree.push(`${dit.text}`);
+        if (bit.boundElements) {
+          const cit = bit.boundElements.find(cit => cit.type == 'text');
+          if (cit) {
+            const dit = els.find(dit => dit.id == cit.id);
+            if (dit && dit.type == 'text') {
+              fullTree.push(`${dit.text}`);
+            }
           }
+        } else {
+          fullTree.push('/');
         }
       }
     }

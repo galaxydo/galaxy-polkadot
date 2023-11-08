@@ -6,8 +6,6 @@
   "scripts": {
     "test-frontend": "jest tests/Galaxy.test.js",
     "dev-frontend": "vite",
-    "dev-deno": "cd desktop && DEV=true deno run --allow-all --unstable main.ts",
-    "dev-desktop": "cd desktop && DEV=true deno run --allow-all --unstable main.ts",
     "excalidraw-build": "cd excalidraw/src/packages/excalidraw && pnpm build:umd",
     "excalidraw-publish": "cd excalidraw/src/packages/excalidraw && node version.js && pnpm publish --no-git-checks",
     "excalidraw-commit-push": "cd excalidraw && git add . && git commit -m 'up' && git push",
@@ -16,9 +14,8 @@
     "release-second": "cd desktop && deno compile --no-check --allow-all --unstable --target x86_64-apple-darwin --output GalaxyBrowser main.ts",
     "release-third": "cd desktop && deno run --allow-all --unstable build.ts",
     "release-second-ai": "cd desktop && deno compile --no-check --allow-all --unstable --target x86_64-apple-darwin --output GalaxyBrowser main.ts -- --openai-key=$(cat .openai-key)",
-    "dev-deno-ai": "cd desktop && DEV=true OPENAI_KEY=$(cat .openai-key) deno run --allow-all --unstable main.ts",
-    "dev-desktop-ai": "vite build && cp -rf ./node_modules/@galaxydo/excalidraw/dist/excalidraw-assets ./dist && cd desktop && DEV=true OPENAI_KEY=$(cat .openai-key) deno run --allow-all --unstable main.ts",
-    "build": "vite build && cp -rf ./node_modules/@galaxydo/excalidraw/dist/excalidraw-assets ./dist && cp -rf ./node_modules/@galaxydo/excalidraw/dist/excalidraw-assets-dev ./dist",
+    "dev-desktop": "cd desktop && DEV=true OPENAI_KEY=$(cat .openai-key) deno run --allow-all --unstable main.ts",
+    "build": "vite build && cp -rf ./node_modules/@excalidraw/excalidraw/dist/excalidraw-assets ./dist && cp -rf ./node_modules/@excalidraw/excalidraw/dist/excalidraw-assets-dev ./dist",
     "pull-submodules": "git -C contract checkout main && git -C contract pull origin main && git -C desktop checkout main && git -C desktop pull origin main && git -C desktop/deno-webui checkout main && git -C desktop/deno-webui pull origin main && git -C desktop/dynamic-import checkout main && git -C desktop/dynamic-import pull origin main && git -C desktop/installer checkout main && git -C desktop/installer pull origin main && git -C desktop/webui checkout main && git -C desktop/webui pull origin main && git -C dist checkout main && git -C dist pull origin main && git -C excalidraw checkout master && git -C excalidraw pull origin master"
   },
   "dependencies": {

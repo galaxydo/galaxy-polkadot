@@ -77,6 +77,10 @@ export default function(excalidrawRef, selectedMacros) {
 
 									// const groupId = updatedEl.find(jt => jt.id == it.id)?.groupIds[0];
 									// it = [...updatedEl.filter(jt => jt.groupIds[0] == groupId)];
+								} else if (it.type == 'text') {
+									it = [
+										...updatedEl,
+									]
 								}
 							} else if (typeof updatedEl == 'object') {
 								it = {
@@ -92,10 +96,38 @@ export default function(excalidrawRef, selectedMacros) {
 										'version': it.version + 1,
 									}
 								} else if (it.type == 'text') {
-									it = {
-										...it,
+									// width should remain the same
+									// font can be downsized to fit in min(120, max(lines)) symbols in width
+									const ansit = window.convertToExcalidrawElements([{
+										// ...it,
+										type: 'text',
+										text: 'x',
+										fontSize: it.fontSize,
+									}])[0].width; // width per symbol - does not matter, symbols of same font have different width
+									const pansit = ansit / it.fontSize; // ansit = pansit * it.fontSize
+									const ensit = it.width;
+									const linsit = updatedEl.split('\n');
+									const unsit = Math.max(...linsit.map(punsit => punsit.length));
+									// const onsit = unsit * ansit; // should be less than ensit;
+									const newFontSize = ensit / unsit / pansit;
+									const lineHeight = 1.25;
+									const sekit = window.convertToExcalidrawElements([{
+										// ...it,
 										text: updatedEl,
-										originalText: updatedEl,
+										// originalText: updatedEl,
+										fontSize: newFontSize,
+										width: it.width, // remains the same
+										height: linsit.length * newFontSize * lineHeight,
+										x: it.x,
+										y: it.y,
+										id: it.id,
+										type: 'text',
+									}])[0];
+									it = {
+										...sekit,
+										width: it.width,
+										groupIds: it.groupIds,
+										id: it.id,
 									}
 								} else if (it.type == 'embeddable') {
 									it = {
