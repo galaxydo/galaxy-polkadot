@@ -65,9 +65,9 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
     window.showModal = showModal;
 
     // window.wallets = wallets;
-    window.connect = async () => {
-      return connect(window.walletName);
-    };
+    // window.connect = async () => {
+    //   return connect(window.walletName);
+    // };
 
     window.showNotification = showNotification;
 

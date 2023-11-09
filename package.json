@@ -21,10 +21,11 @@
   "dependencies": {
     "@dfinity/agent": "^0.19.3",
     "@dfinity/auth-client": "^0.19.3",
-    "@excalidraw/excalidraw": "npm:@galaxydo/excalidraw@0.15.2-2",
+    "@excalidraw/excalidraw": "npm:@galaxydo/excalidraw@0.15.2-4",
     "@galaxydo/excalidraw-utils": "0.1.2-23.8.18",
     "@internet-identity-labs/nfid-sdk-react": "0.0.1-alpha.18",
     "@internet-identity-labs/react-ic-ii-auth": "^0.0.19",
+    "@junobuild/core": "^0.0.36",
     "@polkadot/api": "^10.5.1",
     "@polkadot/extension-dapp": "^0.46.1",
     "@polkadot/util": "^12.1.1",

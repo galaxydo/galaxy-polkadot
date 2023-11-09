@@ -45,6 +45,8 @@ export default function useAuthClient() {
     // Get the user principal id
     const principalId = await window.ic.plug.agent.getPrincipal();
 
+    window.principalId = principalId;
+
     console.log(`Plug's user principal Id is ${principalId}`);
 
     setAccount(principalId);

@@ -13,6 +13,12 @@ import { UseInkProvider } from 'useink';
 import { RococoContractsTestnet, ShibuyaTestnet } from 'useink/chains';
 import { NotificationContext, NotificationProvider } from './NotificationContext';  // Import NotificationContext
 // import * as  transform from '../../../aug14/excalidraw/src/data/transform';
+import { initJuno } from "@junobuild/core";
+import {
+  // InternetIdentityProvider,
+  NFIDProvider,
+  signIn,
+} from "@junobuild/core";
 
 // import { convertToExcalidrawElements } from "@galaxydo/excalidraw-utils";
 
@@ -144,6 +150,18 @@ export default function App() {
   const selectedMacrosRef = useRef(selectedMacros);
 
   const { onMacrosInvoked } = useMacrosInvoked(excalidrawRef, selectedMacros);
+
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      await initJuno({
+        satelliteId: "fqotu-wqaaa-aaaal-acp3a-cai",
+      })
+
+      setReady(true);
+    })();
+  }, []);
 
   return (
     <div className="main">

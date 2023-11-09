@@ -3,6 +3,8 @@ import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { nanoid } from "nanoid";
 import { NotificationProvider } from "./NotificationContext";
 
+
+
 type MacroFunction = (
   input: ExcalidrawElement,
   output: ExcalidrawElement,
@@ -747,55 +749,49 @@ return text;
             throw "Layer name not provided.";
           }
 
-          const scene = {
-            elements: window.ea.getSceneElements().filter(it => it.frameId == frameId).map(it => {
-              return {
-                ...it,
-                id: null,
-              }
-            }),
-            files: window.ea.getFiles(),
-          };
+          // const [error, ipfsLink] = await window.ipfs.upload(scene);
 
-          const [error, ipfsLink] = await window.ipfs.upload(scene);
-
-          if (error) {
-            this.log('ipfs error' + error, 'handlePublish');
-            throw new Error(error);
-          }
+          // if (error) {
+          //   this.log('ipfs error' + error, 'handlePublish');
+          //   throw new Error(error);
+          // }
 
           if (!window.contracts || !window.contracts.write) {
             throw new Error("Smart contract write function is not available.");
           }
 
-          const args = [layerName, ipfsLink];
-          this.log('args ' + args, 'handlePublish');
+          // const args = [layerName, ipfsLink];
+          // this.log('args ' + args, 'handlePublish');
 
-          if (!window.galaxyMetadata) {
-            window.galaxyMetadata = await fetch(this.galaxyMetadata)
-              .then(it => it.json());
-          }
+          // if (!window.galaxyMetadata) {
+          //   window.galaxyMetadata = await fetch(this.galaxyMetadata)
+          //     .then(it => it.json());
+          // }
 
-          const metadata = window.galaxyMetadata;
+          // const metadata = window.galaxyMetadata;
 
-          this.log('metadata' + metadata, 'handlePublish');
+          // this.log('metadata' + metadata, 'handlePublish');
+
+          const key = `${window.user?.key}/${layerName}`;
 
           window.showModal({
             title: "Confirm Transaction",
-            description: `IPFS Link: ${ipfsLink}\nLayer Name: ${layerName}`,
+            description: `Layer key: ${key}`,
             callback: async () => {
-              const { caller } = await window.contracts.write({
-                address: galaxyContractAddress,
-                method: 'createLayer',
-                args,
-                metadata,
+              const writeResult = await window.contracts.write({
+                // address: galaxyContractAddress,
+                // method: 'createLayer',
+                args: { key, frameId },
+                // metadata,
               });
 
+              console.log('writeResult', writeResult)
+
               window.showModal({
-                title: `galaxy://${caller}/${layerName}`,
-                description: 'Transaction has been submitted',
+                title: `galaxy://${key}`,
+                description: 'Copy & Share the link above, create a new frame and press Open to download',
               })
-              return resolve(`galaxy://${caller}/${layerName}`);
+              return resolve(`galaxy://${key}`);
             }
           });
         } catch (error) {
@@ -804,26 +800,34 @@ return text;
         }
       };
 
-      window.showModal({
-        title: "Connect Wallet",
-        description: `Click Confirm to invoke Internet Identity`,
-        callback: async () => {
-          await window.connect();
-          window.showModal({
-            title: "Publish to Galaxy",
-            message: "Please provide a layer name to publish to the Galaxy.",
-            inputField: {
-              label: "Layer Name",
-              value: layerName,
-              placeholder: "Enter Layer Name",
-              onChange: (e) => {
-                layerName = e.target.value;
-              }
-            },
-            callback: handlePublishToGalaxy
-          });
-        }
-      })
+      const nov9 = () => {
+        window.showModal({
+          title: "Publish to Galaxy",
+          message: "Please provide a layer name to publish to the Galaxy.",
+          inputField: {
+            label: "Layer Name",
+            value: layerName,
+            placeholder: "Enter Layer Name",
+            onChange: (e) => {
+              layerName = e.target.value;
+            }
+          },
+          callback: handlePublishToGalaxy
+        });
+      }
+
+      if (!window.user) {
+        window.showModal({
+          title: "Connect Wallet",
+          description: `Click Confirm to invoke NFID`,
+          callback: async () => {
+            await window.connect();
+            nov9();
+          }
+        })
+      } else {
+        nov9();
+      }
     });
   }
   private async defaultOpenMacro(input: ExcalidrawElement): Promise<ExcalidrawElement[]> {
@@ -850,34 +854,51 @@ return text;
             let scene;
 
             if (link.startsWith('ipfs://') || link.startsWith('galaxy://')) {
-
               // Resolve galaxyLink to IPFS link
               if (link.startsWith('galaxy://')) {
 
-                if (!window.galaxyMetadata) {
-                  window.galaxyMetadata = await fetch(this.galaxyMetadata)
-                    .then(it => it.json());
-                }
+                // if (!window.galaxyMetadata) {
+                //   window.galaxyMetadata = await fetch(this.galaxyMetadata)
+                //     .then(it => it.json());
+                // }
 
-                const metadata = window.galaxyMetadata;
+                // const metadata = window.galaxyMetadata;
 
                 const [user, name] = link.replace('galaxy://', '').split('/');
-                const result = await window.contracts.read({
-                  address: galaxyContract,
-                  method: 'resolveLink',
-                  args: [user, name],
-                  metadata,
-                  options: {
-                    defaultCaller: '5ERMmhn6tWtbSX6HspQcztkHbpaYKiZHfiouDBDXgSnMhxU6'
-                  }
-                });
-                link = result.value.decoded.Ok
-                this.log('! link 2', link);
-              }
-              scene =
-                await window.ipfs.download(link);
+                const key = `${user}/${name}`;
 
-              this.log('scene ' + scene, 'remote');
+                if (!window.user) {
+                  await new Promise<void>(resolve => {
+                    window.showModal({
+                      title: "Connect Wallet",
+                      description: `Click Confirm to invoke NFID`,
+                      callback: async () => {
+                        await window.connect();
+                        resolve();
+                      }
+                    })
+                  })
+                }
+
+                const result = await window.contracts.read({
+                  // address: galaxyContract,
+                  // method: 'resolveLink',
+                  args: { key },
+                  // metadata,
+                  // options: {
+                  //   defaultCaller: '5ERMmhn6tWtbSX6HspQcztkHbpaYKiZHfiouDBDXgSnMhxU6'
+                  // }
+                });
+                scene = result.data;
+                // link = ``
+                // scene = '';
+                // link = result.value.decoded.Ok
+                // this.log('! link 2', link);
+              }
+              // scene =
+              //   await window.ipfs.download(link);
+
+              // this.log('scene ' + scene, 'remote');
 
             } else {
               const denoScript = `
@@ -953,6 +974,10 @@ const layerStr = new TextDecoder().decode(layerBinary);
                 height: frameHeight
               }
             ];
+
+            ea.addFiles(
+              Object.entries(scene.files ?? {}).map(([_, value]) => value),
+            );
 
             // If this is in a Promise, resolving it with resultElements
             resolve(resultElements);
