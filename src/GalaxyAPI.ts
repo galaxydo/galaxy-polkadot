@@ -44,6 +44,7 @@ class GalaxyAPI {
     this.registerMacro("open", this.defaultOpenMacro);
     this.registerMacro("publish", this.defaultPublishMacro);
     this.registerMacro("complete", this.defaultGpt4Macro);
+    this.registerMacro("prompt", this.defaultGpt4Macro);
     this.registerMacro("fetch", this.defaultFetchMacro);
     this.registerMacro("cat", this.defaultCatMacro);
     this.registerMacro("ls", this.defaultLsMacro);
@@ -292,9 +293,9 @@ async function ai() {
           x: 0, y: 0,
         }])[0].width;
       const weweit = weit / eweit;
-      const text = weweit > output.text.length && output.fontSize ? '/' + '-'.repeat(weweit) : output.text;
+      const text = weweit > output.text.length ? '/' + '-'.repeat(weweit) : output.text;
       let xaweit = output.width;
-      const placeholder = output.text ?? '/-------------';
+      const placeholder = `${text}` // output.text ?? '/-------------';
       for (const vit of nit) {
         const ritId = nanoid();
         const assit = nanoid();

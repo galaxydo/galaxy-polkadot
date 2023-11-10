@@ -70,6 +70,8 @@ export default function(
 								// label = `gpt4("${label}")`;
 							}
 
+						} else {
+							addMacro('prompt', arrow);
 						}
 					}
 				}
