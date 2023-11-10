@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 # Check if Node.js is installed
 if ! [ -x "$(command -v node)" ]; then
   echo "Error: Node.js is not installed. Please install Node.js (v18 or later) before running this script."
@@ -18,16 +20,6 @@ if ! [ -x "$(command -v pnpm)" ]; then
   exit 1
 fi
 
-# Check if Docker is installed
-if ! [ -x "$(command -v docker)" ]; then
-  echo "Warning: Docker is not installed. The Docker-related steps won't be executed."
-fi
-
-# Check if cargo-contract is installed
-if ! [ -x "$(command -v cargo-contract)" ]; then
-  echo "Warning: cargo-contract is not installed. The contract compilation steps won't be executed."
-fi
-
 # Frontend
 echo "Setting up frontend..."
 pnpm install
@@ -43,11 +35,10 @@ pnpm dev-desktop
 
 # Excaildraw Assets
 echo "Building excalidraw assets..."
-cp -rf ./node_modules/@galaxydo/excalidraw/dist/excalidraw-assets ./dist
+pnpm build:excalidraw-assets || { echo "Error: Failed to build excalidraw assets."; exit 1; }
 
 # webui
 echo "Building webui..."
-cd desktop/webui && make
+cd desktop/webui && make || { echo "Error: Failed to build webui."; exit 1; }
 
 echo "Done!"
-
