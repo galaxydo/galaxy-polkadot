@@ -53,6 +53,9 @@ class GalaxyAPI {
 
     this.galaxyContract = '5E1zfVZmokEX29W9xVzMYJAzvwnXWE7AVcP3d1rXzWhC4sxi';
     this.galaxyMetadata = 'https://raw.githubusercontent.com/7flash/galaxy-polkadot-contract/main/galaxy.json';
+
+    window.inputData = {};
+    window.taskId = 0;
   }
 
   registerCallback(taskId: string, fn: (denoResult: { success: boolean, data: string }) => void): void {
@@ -643,7 +646,8 @@ return text;
 
   private async executeDeno(code: string, input?: ExcalidrawElement, argument?: string) {
     return new Promise(async (resolve, reject) => {
-      const taskId = nanoid();
+      const taskId = window.taskId;  // nanoid();
+      window.taskId++;
       this.registerCallback(taskId, (denoResult) => {
         if (denoResult.success) {
           return resolve(denoResult.data);
@@ -653,12 +657,17 @@ return text;
       });
       try {
         if (!window.webui) throw `Oops.. backend macros only allowed in Desktop mode!`;
-        window.webui.call('executeDeno', JSON.stringify({
+        const inputData = {
           taskId,
           code,
           input: typeof input == 'object' ? input : {},
           argument: argument ?? '',
-        }));
+        };
+        if (!window.inputData) {
+          window.inputData = {};
+        }
+        window.inputData[taskId] = inputData;
+        window.webui.call('executeDeno', JSON.stringify(inputData));
       } catch (err) {
         console.error(err);
         reject(err);
