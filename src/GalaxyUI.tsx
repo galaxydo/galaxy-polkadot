@@ -101,10 +101,10 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
     ]);
   */
   // Function to handle F key button click
-  const handleFKeyClick = async (fKey) => {
+  const handleFKeyClick = async (fKey, benxit) => {
     setLoadingMacro(fKey);
     setSelectedFKey(fKey);
-    await onMacrosInvoked(fKey); // If onMacrosInvoked is async
+    await onMacrosInvoked(fKey, benxit); // If onMacrosInvoked is async
     setLoadingMacro(null);
   };
 
@@ -168,6 +168,28 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
     }
   }, [data]);
 
+  const macroTitles = {
+    'jump': 'Click to jump into chosen anchor',
+  }
+
+  const makeButton = (macroName, macroCaption, macroLen) => {
+    return <button
+      data-testid={`macro-button-${macroName}`}
+      key={macroName}
+      className={selectedFKey === macroName ? styles.selectedFKeyButton : styles.fKeyButton}
+      onClick={() => handleFKeyClick(macroName, macroCaption)}
+      // title={`Hotkey: ${macroList[0].hotkey}`}
+      title={`${macroTitles[macroName] ?? 'Click to execute macro'}`}
+    >
+      <div className={styles.macroName}>{macroCaption}</div>
+      {loadingMacro === macroName ? (
+        <div data-testid={`loading-indicator-${macroName}`} className={styles.loadingIndicator}></div>
+      ) : (
+        <div className={styles.selectionBadge}>{`x${macroLen}`}</div>
+      )}
+    </button>
+  }
+
   return (<div>
     <div className={styles.topLeft}>
     </div>
@@ -194,22 +216,23 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
 
     <div className={styles.bottomCenter}>
       {macros && Array.from(macros.entries()).map(([macroName, macroList]) => {
-        return (
-          <button
-            data-testid={`macro-button-${macroName}`}
-            key={macroName}
-            className={selectedFKey === macroName ? styles.selectedFKeyButton : styles.fKeyButton}
-            onClick={() => handleFKeyClick(macroName)}
-            title={`Hotkey: ${macroList[0].hotkey}`}
-          >
-            <div className={styles.macroName}>{macroName}</div>
-            {loadingMacro === macroName ? (
-              <div data-testid={`loading-indicator-${macroName}`} className={styles.loadingIndicator}></div>
-            ) : (
-              <div className={styles.selectionBadge}>{`x${macroList.length}`}</div>
-            )}
-          </button>
-        );
+        if (macroName == 'jump') {
+          const buttons = [];
+          for (const it of macroList) {
+            buttons.push(
+              makeButton(macroName, it.caption, 1)
+            );
+          }
+          return (
+            <>
+              {...buttons}
+            </>
+          )
+        } else {
+          return (
+            makeButton(macroName, macroName, macroList.length)
+          );
+        }
       })}
     </div>
   </div>

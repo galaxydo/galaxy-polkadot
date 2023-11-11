@@ -48,6 +48,7 @@ class GalaxyAPI {
     this.registerMacro("fetch", this.defaultFetchMacro);
     this.registerMacro("cat", this.defaultCatMacro);
     this.registerMacro("ls", this.defaultLsMacro);
+    this.registerMacro("jump", this.defaultJumpMacro);
     // this.registerMacro("gpt3", this.defaultGpt3Macro);
     // this.registerMacro("draw", this.defaultSdMacro);
 
@@ -133,6 +134,93 @@ async function ai() {
       //   }
       // })
       return rit;
+    } catch (err) {
+      console.error(err);
+      return 'empty';
+    }
+  }
+
+
+  private async defaultJumpMacro(input: ExcalidrawElement, output: ExcalidrawElement) {
+    const TRANSITION_STEP_COUNT = 100;
+    const TRANSITION_DELAY = 1000; //maximum time for transition between slides in milliseconds
+    const FRAME_SLEEP = 1; //milliseconds
+    const EDIT_ZOOMOUT = 0.7; //70% of original slide zoom, set to a value between 1 and 0
+    const FADE_LEVEL = 0.15; //opacity of the slideshow controls after fade delay (value between 0 and 1)
+
+    const getNavigationRect = ({ x1, y1, x2, y2 }) => {
+      const { width, height } = ea.getAppState();
+      const ratioX = width / Math.abs(x1 - x2);
+      const ratioY = height / Math.abs(y1 - y2);
+      let ratio = Math.min(Math.max(ratioX, ratioY), 10);
+
+      const scaledWidth = Math.abs(x1 - x2) * ratio;
+      const scaledHeight = Math.abs(y1 - y2) * ratio;
+
+      if (scaledWidth > width || scaledHeight > height) {
+        ratio = Math.min(width / Math.abs(x1 - x2), height / Math.abs(y1 - y2));
+      }
+
+      const deltaX = (width / ratio - Math.abs(x1 - x2)) / 2;
+      const deltaY = (height / ratio - Math.abs(y1 - y2)) / 2;
+
+      return {
+        left: (x1 < x2 ? x1 : x2) - deltaX,
+        top: (y1 < y2 ? y1 : y2) - deltaY,
+        right: (x1 < x2 ? x2 : x1) + deltaX,
+        bottom: (y1 < y2 ? y2 : y1) + deltaY,
+        nextZoom: ratio,
+      };
+    };
+
+    const sleep = (ms = 0) => new Promise(resolve => setTimeout(resolve, ms));
+
+    let busy = false;
+    const scrollToNextRect = async ({ left, top, right, bottom, nextZoom }, steps = TRANSITION_STEP_COUNT) => {
+      const startTimer = Date.now();
+      let watchdog = 0;
+      while (busy && watchdog++ < 15) await sleep(100);
+      if (busy && watchdog >= 15) return;
+      busy = true;
+      ea.updateScene({ appState: { shouldCacheIgnoreZoom: true } });
+      const { scrollX, scrollY, zoom } = ea.getAppState();
+      const zoomStep = (zoom.value - nextZoom) / steps;
+      const xStep = (left + scrollX) / steps;
+      const yStep = (top + scrollY) / steps;
+      let i = 1;
+      while (i <= steps) {
+        ea.updateScene({
+          appState: {
+            scrollX: scrollX - (xStep * i),
+            scrollY: scrollY - (yStep * i),
+            zoom: { value: zoom.value - zoomStep * i },
+          }
+        });
+        const ellapsed = Date.now() - startTimer;
+        if (ellapsed > TRANSITION_DELAY) {
+          i = i < steps ? steps : steps + 1;
+        } else {
+          const timeProgress = ellapsed / TRANSITION_DELAY;
+          i = Math.min(Math.round(steps * timeProgress), steps)
+          await sleep(FRAME_SLEEP);
+        }
+      }
+      ea.updateScene({ appState: { shouldCacheIgnoreZoom: false } });
+      if (false) {
+        ea.setActiveTool({ type: "laser" });
+      }
+      busy = false;
+    }
+
+    try {
+      const nexit = getNavigationRect({
+        x1: output.x,
+        y1: output.y,
+        x2: output.x + output.width,
+        y2: output.y + output.height,
+      });
+      scrollToNextRect(nexit);
+      return 'ok';
     } catch (err) {
       console.error(err);
       return 'empty';
@@ -657,17 +745,25 @@ return text;
       });
       try {
         if (!window.webui) throw `Oops.. backend macros only allowed in Desktop mode!`;
+        if (typeof input != 'object') {
+          input = {};
+        }
         const inputData = {
           taskId,
           code,
-          input: typeof input == 'object' ? input : {},
+          input,
           argument: argument ?? '',
         };
         if (!window.inputData) {
           window.inputData = {};
         }
         window.inputData[taskId] = inputData;
-        window.webui.call('executeDeno', JSON.stringify(inputData));
+        window.executeDeno(
+          code,
+          JSON.stringify(input),
+          taskId,
+        )
+        // window.webui.call('executeDeno', JSON.stringify(inputData));
       } catch (err) {
         console.error(err);
         reject(err);
@@ -690,22 +786,49 @@ return text;
 
             const scene = {
               elements: window.ea.getSceneElements().filter(it => it.frameId == frameId),
-              files: window.ea.getFiles(),
+              // files: window.ea.getFiles(),
             }
 
             const escapedSceneName = sceneName.replace(/'/g, "\\'");
             const escapedSceneJSON = JSON.stringify(scene).replace(/'/g, "\\'");
+            console.log('escapedSceneJSON', escapedSceneJSON);
+
+            //             const denoScript = `
+            //         async function saveScene(input) {
+            //           const kvBlob = await import('https://deno.land/x/kv_toolbox@0.0.4/blob.ts');
+            //   const kv = await Deno.openKv();
+            //   const blob = new TextEncoder().encode('${escapedSceneJSON}');
+            //   await kvBlob.set(kv, ["layers", '${escapedSceneName}'], blob);
+            //   await kv.close();
+            //   return blob.length;
+            //         }
+            // `;
 
             const denoScript = `
-        async function saveScene(input) {
-          const kvBlob = await import('https://deno.land/x/kv_toolbox@0.0.4/blob.ts');
-  const kv = await Deno.openKv();
-  const blob = new TextEncoder().encode('${escapedSceneJSON}');
-  await kvBlob.set(kv, ["layers", '${escapedSceneName}'], blob);
-  await kv.close();
-  return blob.length;
-        }
-`;
+              async function saveScene() {
+  const scene = JSON.parse(${JSON.stringify(escapedSceneJSON)});
+
+  const encoder = new TextEncoder();
+            
+            const fileIds = [...new Set(scene.elements.filter(it => it.type == 'image').map(it => it.fileId))];
+            
+            fileIds.forEach(async (fileId) => {
+    const fileDataURL = await firstWindow.script("return window.ea.getFiles()[fileId].dataURL;");
+
+    // Remove data URL prefix and convert from base64 to a Uint8Array
+    const base64Data = fileDataURL.split(';base64,').pop();
+    const decodedData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+
+    // Extract file type from data URL
+    const fileType = fileDataURL.split(';')[0].split('/')[1];
+
+    await Deno.writeFile(galaxyPath + '/' + fileId + '.' + fileType, decodedData);
+                                  
+            });
+            const sceneData = JSON.stringify(scene);
+            await Deno.writeTextFile(galaxyPath + '/' + ${sceneName} + '.json', sceneData); return fileIds.length;
+              }
+            `;
 
             try {
               const result = await this.executeDeno(
