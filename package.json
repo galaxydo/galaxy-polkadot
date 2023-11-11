@@ -6,21 +6,28 @@
   "scripts": {
     "test-frontend": "jest tests/Galaxy.test.js",
     "dev-frontend": "vite",
-    "dev-deno": "cd desktop && DEV=true deno run --allow-all --unstable main.ts",
-    "dev-desktop": "vite build && cd desktop && DEV=true deno run --allow-all --unstable main.ts",
-    "excalidraw-first": "cd excalidraw/src/packages/excalidraw && yarn build:umd",
-    "excalidraw-second": "cd excalidraw/src/packages/excalidraw && yarn publish",
-    "excalidraw-third": "cd excalidraw && git add . && git commit -m 'up' && git push",
-    "release-first": "vite build && cd dist && git add . && git commit -m 'up' && git push",
-    "release-second": "cd desktop && deno compile --no-check --allow-all --unstable --target x86_64-apple-darwin --output GalaxyBrowser main.ts",
-    "release-third": "cd desktop && deno run --allow-all --unstable build.ts",
-    "build": "vite build",
+    "excalidraw-build": "cd excalidraw/src/packages/excalidraw && pnpm build:umd",
+    "excalidraw-publish": "cd excalidraw/src/packages/excalidraw && node version.js && pnpm publish --no-git-checks",
+    "excalidraw-commit-push": "cd excalidraw && git add . && git commit -m 'up' && git push",
+    "install-excalidraw": "pnpm i @excalidraw/excalidraw@npm:@galaxydo/excalidraw@$(pnpm show -r @galaxydo/excalidraw version)",
+    "push-frontend": "cd dist && git add . && git commit -m 'up' && git push",
+    "compile-macos-intel": "cd desktop && deno compile --no-check --allow-all --unstable --target x86_64-apple-darwin --output ./bin/GalaxyBrowser-macos-intel main.ts",
+    "compile-macos-m1": "cd desktop && deno compile --no-check --allow-all --unstable --target aarch64-apple-darwin --output ./bin/GalaxyBrowser-macos-m1 main.ts",
+    "build-installer-macos-intel": "cd desktop && BINARY_NAME=GalaxyBrowser-macos-intel deno run --allow-all --unstable build.ts",
+    "build-installer-macos-m1": "cd desktop && BINARY_NAME=GalaxyBrowser-macos-m1 deno run --allow-all --unstable build.ts",
+    "release-second-ai": "cd desktop && deno compile --no-check --allow-all --unstable --target x86_64-apple-darwin --output GalaxyBrowser main.ts -- --openai-key=$(cat .openai-key)",
+    "dev-desktop": "cd desktop && DEV=true OPENAI_KEY=$(cat .openai-key) deno run --allow-all --unstable main.ts",
+    "build": "vite build && cp -rf ./node_modules/@excalidraw/excalidraw/dist/excalidraw-assets ./dist && cp -rf ./node_modules/@excalidraw/excalidraw/dist/excalidraw-assets-dev ./dist",
     "pull-submodules": "git -C contract checkout main && git -C contract pull origin main && git -C desktop checkout main && git -C desktop pull origin main && git -C desktop/deno-webui checkout main && git -C desktop/deno-webui pull origin main && git -C desktop/dynamic-import checkout main && git -C desktop/dynamic-import pull origin main && git -C desktop/installer checkout main && git -C desktop/installer pull origin main && git -C desktop/webui checkout main && git -C desktop/webui pull origin main && git -C dist checkout main && git -C dist pull origin main && git -C excalidraw checkout master && git -C excalidraw pull origin master"
   },
   "dependencies": {
-    "@excalidraw/excalidraw": "npm:@galaxydo/excalidraw@latest",
-    "@galaxydo/excalidraw": "latest",
+    "@dfinity/agent": "^0.19.3",
+    "@dfinity/auth-client": "^0.19.3",
+    "@excalidraw/excalidraw": "npm:@galaxydo/excalidraw@0.15.2-4",
     "@galaxydo/excalidraw-utils": "0.1.2-23.8.18",
+    "@internet-identity-labs/nfid-sdk-react": "0.0.1-alpha.18",
+    "@internet-identity-labs/react-ic-ii-auth": "^0.0.19",
+    "@junobuild/core": "^0.0.36",
     "@polkadot/api": "^10.5.1",
     "@polkadot/extension-dapp": "^0.46.1",
     "@polkadot/util": "^12.1.1",
@@ -54,6 +61,7 @@
     "jest-environment-jsdom": "^29.6.4",
     "ts-jest": "^29.1.1",
     "typescript": "^5.0.2",
-    "vite": "^4.3.0"
+    "vite": "^4.3.0",
+    "webpack-cli": "^5.1.4"
   }
 }

@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useContext } from 'react';
-import { usePolkadotExtension } from "./hooks/use-polkadot-extension";
 import { useIPFSClient } from './hooks/use-ipfs-client';
 import styles from './GalaxyUI.module.css';
 import AddIcon from './assets/add-icon.svg';
@@ -7,7 +6,8 @@ import GetIcon from './assets/get-icon.svg';
 import WalletIcon from './assets/wallet-icon.svg';
 import InfoIcon from './assets/info-icon.svg';
 import { ModalContext } from './ModalDialog';
-import { useWallet, useAllWallets, useChain } from 'useink';  // Import the required hooks
+import useWallet from './hooks/useWallet';
+// import { useWallet, useAllWallets, useChain } from 'useink';  // Import the required hooks
 import { NotificationContext, NotificationProvider } from './NotificationContext';  // Import NotificationContext
 import { useTx, useContract } from 'useink';
 import { pickDecoded, shouldDisable } from 'useink/utils';
@@ -17,41 +17,8 @@ import { Abi, ContractPromise } from 'useink/core';
 import { useApi } from 'useink';
 import { ChainId } from 'useink/chains';
 import useInteractWithContract from './hooks/useInteractWithContract';
-
-export const ConnectWallet = ({ onClose }) => {
-  const { account, connect, disconnect } = useWallet()
-  const wallets = useAllWallets();
-
-  if (!account) {
-    return (
-      <ul>
-        {wallets.map((w) => (
-          <li key={w.title}>
-            {w.installed ? (
-              <button onClick={() => connect(w.extensionName)}>
-                <img src={w.logo.src} alt={w.logo.alt} />
-                Connect to {w.title}
-              </button>
-            ) : (
-              <a href={w.installUrl}>
-                <img src={w.logo.src} alt={w.logo.alt} />
-                Install {w.title}
-              </a>
-            )}
-          </li>
-        ))}
-      </ul>
-    )
-  }
-
-  return (
-    <>
-      <p>You are connected as {account?.name || account.address}</p>
-      <button onClick={disconnect}>Disconnect Wallet</button>
-      <button onClick={onClose}>Close</button>
-    </>
-  )
-}
+import { InternetIdentityProvider } from '@internet-identity-labs/react-ic-ii-auth';
+import { AuthButton } from './AuthButton';
 
 const Dialogs = {
   GetScene: 'GetScene',
@@ -65,7 +32,7 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
   const { showModal, closeModal } = useContext(ModalContext);
   const { showNotification } = useContext(NotificationContext);  // Use NotificationContext
 
-  const { accounts, enableExtension } = usePolkadotExtension();
+  // const { accounts, enableExtension } = usePolkadotExtension();
   const { data, loadScene, saveScene } = useIPFSClient();
 
   const [currentDialog, setCurrentDialog] = useState(null);
@@ -80,9 +47,9 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
   const [selectedFKey, setSelectedFKey] = useState('');
 
   const { account, connect, disconnect } = useWallet();
-  const wallets = useAllWallets();
+  // const wallets = useAllWallets();
 
-  const chainConfig = useChain();
+  // const chainConfig = useChain();
 
   const { read, write } = useInteractWithContract();
 
@@ -93,23 +60,14 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
   }, [account]);
 
   useEffect(() => {
+    window.canisterId = 'bkyz2-fmaaa-aaaaa-qaaaq-cai';
+
     window.showModal = showModal;
 
-    window.wallets = wallets;
-    window.connect = () => new Promise((resolve) => {
-      if (window.account?.address) {
-        return resolve(window?.account.address);
-      }
-
-      const it = setInterval(() => {
-        if (window.account?.address) {
-          resolve(window?.account.address);
-          return clearInterval(it);
-        }
-      }, 700);
-
-      connect(window.walletName);
-    });
+    // window.wallets = wallets;
+    // window.connect = async () => {
+    //   return connect(window.walletName);
+    // };
 
     window.showNotification = showNotification;
 
@@ -143,10 +101,10 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
     ]);
   */
   // Function to handle F key button click
-  const handleFKeyClick = async (fKey) => {
+  const handleFKeyClick = async (fKey, benxit) => {
     setLoadingMacro(fKey);
     setSelectedFKey(fKey);
-    await onMacrosInvoked(fKey); // If onMacrosInvoked is async
+    await onMacrosInvoked(fKey, benxit); // If onMacrosInvoked is async
     setLoadingMacro(null);
   };
 
@@ -210,132 +168,26 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
     }
   }, [data]);
 
-  const handleConnectWallet = () => {
-    const installedWallets = Object.keys(window.injectedWeb3);
+  const macroTitles = {
+    'jump': 'Click to jump into chosen anchor',
+  }
 
-    if (installedWallets.length === 0) {
-      // Show modal message with instructions to install the first wallet from the list
-      showModal({
-        title: "Install Wallet",
-        description: wallets[0].noInstalledMessage,
-        callback: () => { }
-      });
-    } else if (installedWallets.length === 1) {
-      // Skip selecting wallet, just do connect
-      const singleInstalledWallet = wallets.find(wallet => wallet.extensionName === installedWallets[0]);
-
-      if (singleInstalledWallet) {
-        showNotification({
-          type: "info",
-          message: `Connecting to ${singleInstalledWallet.title}...`
-        });
-
-        connect(singleInstalledWallet.extensionName)
-        // .then(() => {
-        //   showNotification({
-        //     type: "success",
-        //     message: "Successfully connected to the wallet."
-        //   });
-        // })
-        // .catch((error) => {
-        //   showNotification({
-        //     type: "error",
-        //     message: `Failed to connect to the wallet: ${error.message}`
-        //   });
-        // });
-      } else {
-        showNotification({
-          type: "error",
-          message: "Installed wallet is not supported."
-        });
-      }
-
-    } else { // For multiple installed wallets
-      const walletList = wallets.map((wallet, index) => `${index + 1}. ${wallet.title}`).join('\n');
-
-      showModal({
-        title: "Connect to Wallet",
-        description: "Select a wallet by mentioning its number:",
-        callback: (userInput) => {
-          const selectedWalletIndex = parseInt(userInput, 10) - 1;
-
-          if (wallets[selectedWalletIndex]) {
-            showNotification({
-              type: "info",
-              message: `Connecting to ${wallets[selectedWalletIndex].title}...`
-            });
-
-            connect(wallets[selectedWalletIndex].extensionName)
-              .then(() => {
-                showNotification({
-                  type: "success",
-                  message: "Successfully connected to the wallet."
-                });
-              })
-              .catch((error) => {
-                showNotification({
-                  type: "error",
-                  message: `Failed to connect to the wallet: ${error.message}`
-                });
-              });
-          } else {
-            showNotification({
-              type: "error",
-              message: "Invalid wallet selection. Please try again."
-            });
-          }
-        },
-        // Adding the inputField for user input in modal
-        inputField: {
-          value: '',  // initial value
-          placeholder: walletList,  // showing list as placeholder
-        }
-      });
-    }
-  };
-
-  const handleLoadFromIPFS = async () => {
-    if (sceneHash) {
-      try {
-        await loadScene(sceneHash);
-        showNotification("Scene loaded successfully");
-        excalidrawRef.current.scrollToContent();
-        closeDialog();
-      } catch (error) {
-        console.log('error', error);
-        showError("Error loading scene: " + error);
-      }
-    }
-  };
-
-  const handleSaveToIPFS = async () => {
-    if (excalidrawRef.current && sceneName) {
-      const files = excalidrawRef.current.getFiles();
-      const scene = JSON.stringify({
-        elements: excalidrawRef.current.getSceneElements(),
-        files: Object.keys(files).map(it => files[it]),
-        source: accounts[0].address,
-        appState: {
-          name: sceneName,
-        }
-      });
-      const [error, hash] = await saveScene(scene);
-      if (hash) {
-        setSceneHash(hash);
-        window.history.pushState(null, null, `#${hash}`);
-        excalidrawRef.current.updateScene({
-          appState: {
-            name: sceneName,
-          }
-        })
-        showNotification(`Scene saved at ipfs://${hash}`);
-      } else {
-        showError(`Error saving scene: ${error}`)
-      }
-      closeDialog();
-    } else {
-      showError("Cannot save scene");
-    }
+  const makeButton = (macroName, macroCaption, macroLen) => {
+    return <button
+      data-testid={`macro-button-${macroName}`}
+      key={macroName}
+      className={selectedFKey === macroName ? styles.selectedFKeyButton : styles.fKeyButton}
+      onClick={() => handleFKeyClick(macroName, macroCaption)}
+      // title={`Hotkey: ${macroList[0].hotkey}`}
+      title={`${macroTitles[macroName] ?? 'Click to execute macro'}`}
+    >
+      <div className={styles.macroName}>{macroCaption}</div>
+      {loadingMacro === macroName ? (
+        <div data-testid={`loading-indicator-${macroName}`} className={styles.loadingIndicator}></div>
+      ) : (
+        <div className={styles.selectionBadge}>{`x${macroLen}`}</div>
+      )}
+    </button>
   }
 
   return (<div>
@@ -343,26 +195,44 @@ const GalaxyUI = ({ excalidrawRef, macros, onMacrosInvoked }) => {
     </div>
 
     <div className={styles.topRight}>
-    </div>
+      <InternetIdentityProvider
+        authClientOptions={
+          {
+            maxTimeToLive: BigInt(Date.now() + 7 * 24 * 60 * 60 * 1e9),
+            identityProvider: "https://nfid.one/authenticate/?applicationName=Galaxy-Browser",
+            windowOpenerFeatures:
+              `left=${window.screen.width / 2 - 525 / 2}, ` +
+              `top=${window.screen.height / 2 - 705 / 2},` +
+              `toolbar=0,location=0,menubar=0,width=525,height=705`,
+            onSuccess: (principal) => {
+              alert("Principal " + JSON.stringify(principal));
+              // setProvider("NFID")
+            },
+          }
+        }
+      >
+        <AuthButton reset={() => setProvider(null)} provider="NFID" />
+      </InternetIdentityProvider>    </div>
 
     <div className={styles.bottomCenter}>
       {macros && Array.from(macros.entries()).map(([macroName, macroList]) => {
-        return (
-          <button
-            data-testid={`macro-button-${macroName}`}
-            key={macroName}
-            className={selectedFKey === macroName ? styles.selectedFKeyButton : styles.fKeyButton}
-            onClick={() => handleFKeyClick(macroName)}
-            title={`Hotkey: ${macroList[0].hotkey}`}
-          >
-            <div className={styles.macroName}>{macroName}</div>
-            {loadingMacro === macroName ? (
-              <div data-testid={`loading-indicator-${macroName}`} className={styles.loadingIndicator}></div>
-            ) : (
-              <div className={styles.selectionBadge}>{`x${macroList.length}`}</div>
-            )}
-          </button>
-        );
+        if (macroName == 'jump') {
+          const buttons = [];
+          for (const it of macroList) {
+            buttons.push(
+              makeButton(macroName, it.caption, 1)
+            );
+          }
+          return (
+            <>
+              {...buttons}
+            </>
+          )
+        } else {
+          return (
+            makeButton(macroName, macroName, macroList.length)
+          );
+        }
       })}
     </div>
   </div>

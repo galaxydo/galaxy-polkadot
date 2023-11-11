@@ -1,189 +1,256 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Abi, ContractPromise, ContractSubmittableResult, toContractAbiMessage } from 'useink/core';
-import { useApi, useChain, useWallet } from 'useink';
-import { ChainContract, useDefaultCaller } from 'useink';
-import { useAbiMessage } from 'useink';
-import { call } from 'useink/core';
-import { toContractOptions } from 'useink/core';
+// import { Actor, HttpAgent } from '@dfinity/agent';
 
-function useInteractWithContract() {
-  const { account, connect } = useWallet();
-  const chainConfig = useChain('rococo-contracts-testnet');
-  // console.log('chainConfig', chainConfig);
-  const { api } = useApi(chainConfig?.id) || {};
+import { MIME_TYPES } from "@excalidraw/excalidraw";
+import { FileId } from "@excalidraw/excalidraw/types/element/types";
+import { BinaryFileData, BinaryFiles, DataURL } from "@excalidraw/excalidraw/types/types";
+import {
+  Asset,
+  Satellite,
+  User,
+  deleteAsset,
+  getDoc,
+  listAssets,
+  setDoc,
+  unsafeIdentity,
+  uploadBlob,
+} from "@junobuild/core";
+import { nanoid } from "nanoid";
 
-  // console.log('Initializing useInteractWithContract...a', api);
+let galaxyActor: any = null;
 
-  const apiRef = useRef(api);
-  apiRef.current = api;
+const idlFactory = ({ IDL }) => {
+  const Layer = IDL.Text;
+  const IPFSLink = IDL.Text;
+  const Error = IDL.Text;
+  const User = IDL.Principal;
+  return IDL.Service({
+    'createLayer': IDL.Func([Layer, IPFSLink], [Error], []),
+    'resolveLink': IDL.Func([User, Layer], [IDL.Opt(IPFSLink)], ['query']),
+  });
+};
+const init = ({ IDL }) => { return []; };
 
-  const accountRef = useRef(account);
-  accountRef.current = account;
+export default function useInteractWithContract() {
+  const initActor = async () => {
+    // const agent = new HttpAgent();
+    // galaxyActor = Actor.createActor(idlFactory, { agent, canisterId });
 
-  useEffect(() => {
-    // console.log("API changed:", api);
-  }, [api]);
-
-  const getAbi = useCallback((metadata) => {
-    if (!metadata || Object.keys(metadata).length === 0) {
-      throw new Error('Metadata is empty or invalid.');
-    }
-    console.log('getAbi', 'api', apiRef.current);
-    const props =
-      apiRef.current?.registry.getChainProperties();
-    console.log('getAbi', 'props', props);
-    const abi = new Abi(metadata, props);
-
-    if (!abi) {
-      throw new Error('Failed to fetch ABI.');
-    }
-
-    return abi;
-  }, [api]);
-
-  const getAbiMessage = (contract, message) => {
-    if (!contract) return;
-    const abiMessage = toContractAbiMessage(contract, message);
-
-    if (!abiMessage || !abiMessage.ok) {
-      throw new Error(`Failed to retrieve ABI message for method: ${message}.`);
-    }
-
-    return abiMessage.value;
+    galaxyActor = await window.ic.plug.createActor({
+      canisterId: window.canisterId,
+      interfaceFactory: idlFactory,
+    });
   };
 
-  const getChainContract = useCallback((abi, address) => {
-    console.log(`Fetching contract for ABI: ${abi} and address: ${address}`);
-    if (apiRef.current && abi) {
-      return new ContractPromise(apiRef.current, abi, address);
-    }
-    return null;
-  }, [api]);
-
-  const read = useCallback(async ({ address, metadata, method, args = [], options }) => {
-    console.log(`Reading data using method: ${method} from address: ${address} with args:`, args);
-
-    const abi = getAbi(metadata);
-    const chainContract = getChainContract(abi, address);
-    const abiMessage = getAbiMessage(chainContract, method);
-
-    const caller = account?.address
-      ? account.address
-      : options?.defaultCaller
-        ? options.defaultCaller
-        : undefined;
-
-    if (!abiMessage || !chainContract || !caller) {
-      console.error('Invalid arguments or setup');
-      throw new Error('Invalid arguments or setup');
-    }
-
-    try {
-      const callResult = await call(
-        chainContract,
-        abiMessage,
-        caller,
-        args,
-        options,
-      );
-
-      console.log('Read result:', callResult);
-      return callResult;
-
-    } catch (error) {
-      console.error(`Error reading from contract: ${error.message}`);
-      throw new Error(`Error reading from contract: ${error.message}`);
-    }
-
-  }, [account]);
-
-  const write = useCallback(async ({ address, metadata, method, args, options, chainId }) => {
-    console.log(`Writing data using method: ${method} to address: ${address} with args:`, args);
-
-    const abi = getAbi(metadata);
-    const chainContract = getChainContract(abi, address);
-    const abiMessage = getAbiMessage(chainContract, method);
-
-    console.log('! chainContract', chainContract, chainContract.contract);
-    console.log('! account', account, accountRef.current);
-
-    if (!chainContract || !accountRef.current || !accountRef.current.wallet?.extension) {
-      // connect(window.walletName);
-      throw new Error('Contract or wallet information missing.');
-    }
-
-    const caller = accountRef.current.address
-      ? accountRef.current.address
-      : null;
+  const read = async ({ method, args }) => {
+    const { key } = args;
     
-    if (!caller || !chainContract || !abiMessage) {
-      throw new Error('Dry run prerequisites not met.');
-    }
+    const satellite = {
+      identity: await unsafeIdentity(),
+      satelliteId: "fqotu-wqaaa-aaaal-acp3a-cai",
+    };
 
-    let dryRunResult;
-    try {
-      dryRunResult = await call(
-        chainContract,
-        abiMessage,
-        caller,
-        args,
-        options
-      );
-    } catch (error) {
-      console.error(`Dry run error: ${error.message}`);
-      throw new Error('Dry run failed.');
-    }
+    const doc = await getDoc<JunoScene>({
+      collection: "scenes",
+      key,
+      satellite,
+    });
 
-    if (dryRunResult && dryRunResult.ok) {
-      const { gasRequired } = dryRunResult.value;
+    console.log('doc', doc);
 
-      const continueWithTransaction = async ({ onSuccess, onStatus }) => {
-        const tx = chainContract.tx[method];
-        if (!tx) {
-          throw new Error(`'${method}' not found on contract instance`);
-        }
+    setTimeout(async () => {
+      const files = await loadAssets(key);
+      // window.ea.addFiles(files);      
+    }, 109);
+    
+    return doc;
+  };
 
-        try {
-          const txResult = await tx(
-            { gasLimit: gasRequired, ...toContractOptions(options) },
-            ...args
-          ).signAndSend(
-            accountRef.current.address,
-            { signer: accountRef.current.wallet.extension.signer },
-            (txResult: ContractSubmittableResult) => {
-              if (txResult && txResult.status && txResult.status.isFinalized) {
-                const txID = txResult.status.asFinalized.toString();
-                console.log(`Transaction ID: ${txID}`);
-                if (typeof onSuccess == 'function') {
-                  onSuccess(txID);
-                }
-              } else {
-                console.log('Transaction status', txResult.status.type);
-                if (typeof onStatus == 'function') {
-                  onStatus(txResult.status.type);
-                }
-              }
-            },
-          );
+  const write = async ({ method, args }) => {
+    const { key, frameId } = args;
 
-          console.log('! maybe txResult', txResult);
+    const satellite = {
+      identity: await unsafeIdentity(),
+      satelliteId: "fqotu-wqaaa-aaaal-acp3a-cai",
+    };
 
-          return txResult;
+    const elements = window.ea.getSceneElements().filter(it => it.frameId == frameId).map(it => {
+      return {
+        ...it,
+        id: null,
+      }
+    });
 
-        } catch (error) {
-          console.error(`Error executing transaction: ${error.message}`);
-          throw new Error(`Error executing transaction: ${error.message}`);
-        }
-      };
+    const files =
+      window.ea.getFiles();
 
-      return { gasRequired, continueWithTransaction, caller };
-    } else {
-      throw new Error('Dry run failed.');
-    }
+    // const scene = {
+    //   elements,
+    //   files,
+    // };
 
-  }, [account]);
+    const setDocRes = await setDoc<JunoScene>({
+      collection: "scenes",
+      doc: {
+        // ...doc,
+        key,
+        data: {
+          elements,
+          // ...rest,
+          // ...restMetadata,
+          // lastChange,
+        },
+      },
+      satellite,
+    });
 
-  return { read, write };
+    const uploadFilesRes = await uploadFiles({
+      elements,
+      files,
+      satellite,
+      key,
+    });
+
+    return { setDocRes, uploadFilesRes }
+
+    // if (!galaxyActor) {
+    //   await initActor();
+    // }
+    // return await galaxyActor[method](...args);
+  };
+
+  return { read, write,  };
 }
 
-export default useInteractWithContract;
+const uploadFiles = async ({
+  files,
+  elements,
+  satellite,
+  key: sceneKey,
+}: {
+  satellite: Satellite;
+} & Pick<ExcalidrawScene, "elements" | "files"> & { key: JunoSceneKey }) => {
+  if (!files) {
+    return;
+  }
+
+  const { assets } = await listAssets({
+    collection: "files",
+    satellite,
+  });
+
+  type File = {
+    key: string;
+    file: BinaryFileData;
+  };
+
+  let uploadFiles: File[] = [];
+  let deleteFiles: Asset[] = [];
+
+  for (const [key, file] of Object.entries(files)) {
+    const deleted =
+      elements?.find(
+        (element) =>
+          element.type === "image" &&
+          (element as ExcalidrawImageElement).fileId === key &&
+          element.isDeleted,
+      ) !== undefined;
+    const reactivated =
+      elements?.find(
+        (element) =>
+          element.type === "image" &&
+          (element as ExcalidrawImageElement).fileId === key &&
+          !element.isDeleted,
+      ) !== undefined;
+
+    const asset = assets.find(({ name }) => key === name);
+
+    if (deleted && !reactivated && asset !== undefined) {
+      deleteFiles = [...deleteFiles, asset];
+    }
+
+    if (asset === undefined && (!deleted || reactivated)) {
+      uploadFiles = [...uploadFiles, { key, file }];
+    }
+  }
+
+  await Promise.all([
+    ...deleteFiles.map((storageFile) =>
+      deleteAsset({
+        collection: "files",
+        fullPath: storageFile.fullPath,
+        satellite,
+      }),
+    ),
+    ...uploadFiles.map(async ({ key, file }) =>
+      uploadBlob({
+        collection: "files",
+        filename: key,
+        data: await (await fetch(file.dataURL)).blob(),
+        headers: [
+          ...(file.mimeType === undefined
+            ? []
+            : ([["Content-Type", file.mimeType]] as [string, string][])),
+        ],
+        token: nanoid(),
+        description: sceneKey,
+        satellite,
+      }),
+    ),
+  ]);
+};
+
+export const loadAssets = async (key: string): Promise<BinaryFileData[]> => {
+  const { assets } = await listAssets({
+    collection: "files",
+    filter: {
+      matcher: {
+        description: key,
+      },
+    },
+  });
+
+  const files = await Promise.all(
+    assets.map(async ({ downloadUrl, headers, name }) => {
+      const response = await fetch(
+        downloadUrl.replace(".icp0.io", ".raw.icp0.io"),
+      );
+      const blob = await response.blob();
+      const reader = new FileReader();
+      await new Promise((resolve, reject) => {
+        reader.onload = resolve;
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      const dataURL = reader?.result as string;
+
+      const now = Date.now();
+
+      const bnData: BinaryFileData = {
+        id: name as FileId,
+        dataURL: dataURL as DataURL,
+        created: now,
+        lastRetrieved: now,
+        mimeType: (headers.find(
+          ([header, _]) => header === "Content-Type'",
+        )?.[1] ?? "image/jpeg") as
+          | (typeof ALLOWED_IMAGE_MIME_TYPES)[number]
+          | typeof MIME_TYPES.binary,
+      };
+
+      ea.addFiles([bnData]);
+
+      return bnData;
+    }),
+  );
+
+  // return files;
+
+  return files.reduce(
+    (acc, value) => ({
+      ...acc,
+      [value.id]: value,
+    }),
+    {},
+  );
+};

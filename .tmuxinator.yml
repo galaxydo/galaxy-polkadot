@@ -1,0 +1,49 @@
+# /Users/gur/.config/tmuxinator/galaxy.yml
+
+name: galaxy
+root: ~/Documents/galaxy-browser
+
+# on_project_restart: command
+# on_project_stop: command
+# pre_window: nvm use 21
+
+startup_window: editor
+startup_pane: 1
+attach: false
+on_project_exit:
+  - tmux -CC attach -t galaxy
+on_project_start:
+  - export EDITOR="hx"
+  - export VISUAL=$EDITOR
+windows:
+  - root:
+      panes:
+        - console:
+            - pnpm install
+            - git submodule update --init --recursive --remote
+            - pnpm pull-submodules
+            - pnpm build
+  - contract:
+      root: ~/Documents/galaxy-browser/icp_contract
+      panes:
+        - editor: hx src/icp_contract_backend/main.mo
+        - console: echo "Contract"
+  - backend:
+      root: ~/Documents/galaxy-browser/desktop
+      panes:
+        - editor: hx main.ts
+        - console:
+            - echo "Backend"
+            - touch .openai-key
+            - pnpm dev-desktop-ai
+  - webui:
+      root: ~/Documents/galaxy-browser/desktop/webui
+      panes:
+        - console: make
+  - frontend:
+      root: ~/Documents/galaxy-browser/src
+      layout: main-vertical
+      panes:
+        - editor: hx App.tsx
+        - console:
+            - echo "Frontend"

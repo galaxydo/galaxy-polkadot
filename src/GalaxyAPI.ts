@@ -1,10 +1,14 @@
 import { ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { nanoid } from "nanoid";
+import { NotificationProvider } from "./NotificationContext";
+
+
 
 type MacroFunction = (
   input: ExcalidrawElement,
-) => Promise<ExcalidrawElement[]>;
+  output: ExcalidrawElement,
+) => Promise<ExcalidrawElement[] | string>;
 
 // export class MacroRegistry {
 //   registerMacro(name, fn) {
@@ -39,9 +43,20 @@ class GalaxyAPI {
     this.registerMacro("save", this.defaultSaveMacro);
     this.registerMacro("open", this.defaultOpenMacro);
     this.registerMacro("publish", this.defaultPublishMacro);
+    this.registerMacro("complete", this.defaultGpt4Macro);
+    this.registerMacro("prompt", this.defaultGpt4Macro);
+    this.registerMacro("fetch", this.defaultFetchMacro);
+    this.registerMacro("cat", this.defaultCatMacro);
+    this.registerMacro("ls", this.defaultLsMacro);
+    this.registerMacro("jump", this.defaultJumpMacro);
+    // this.registerMacro("gpt3", this.defaultGpt3Macro);
+    // this.registerMacro("draw", this.defaultSdMacro);
 
     this.galaxyContract = '5E1zfVZmokEX29W9xVzMYJAzvwnXWE7AVcP3d1rXzWhC4sxi';
     this.galaxyMetadata = 'https://raw.githubusercontent.com/7flash/galaxy-polkadot-contract/main/galaxy.json';
+
+    window.inputData = {};
+    window.taskId = 0;
   }
 
   registerCallback(taskId: string, fn: (denoResult: { success: boolean, data: string }) => void): void {
@@ -68,21 +83,558 @@ class GalaxyAPI {
   async executeMacro(
     name: string,
     input: ExcalidrawElement,
+    output: ExcalidrawElement,
   ): Promise<ExcalidrawElement[]> {
     const macro = this.getMacro(name);
-    this.log(`Executing macro "${name}" with input ${JSON.stringify(input)}.`, "executeMacro");
+    this.log(`Executing macro "${name}" with input ${JSON.stringify(input)}`, "executeMacro");
 
     if (!macro) {
       throw new Error(`Macro with name ${name} is not registered.`);
     }
 
-    const result = await macro(input);
+    const result = await macro(input, output);
     this.log(`Execution result for "${name}": ${JSON.stringify(result)}`, "executeMacro");
 
     return result;
   }
 
-  private defaultJsMacro(input: ExcalidrawElement): ExcalidrawElement[] {
+  private constructGptScript(model: string, key: string): string {
+    // note, input and argument are magically embedded in runtime
+    return `
+async function ai() {
+    const inputText = input.text;
+    const taskText = argument;
+
+    const { OpenAI } = await import("https://deno.land/x/openai/mod.ts");
+    const openAI = new OpenAI('${key}');
+
+    let opts = { model: '', messages: [] };
+    opts.model = '${model}';
+    opts.messages.push({ 'role': 'system', 'content': 'Execute given task over given input, respond with short result only, no comments.'});
+    opts.messages.push({ 'role': 'user', 'content': 'Input: ' + inputText });
+    opts.messages.push({ 'role': 'user', 'content': 'Task: ' + taskText });
+    const completion = await openAI.createChatCompletion(opts);
+
+    return completion.choices[0].message.content;
+}
+    `;
+  }
+
+
+  private async defaultCatMacro(input: ExcalidrawElement, output: ExcalidrawElement) {
+    try {
+      const bit = this.getFullTree(input, output);
+      const cit = bit.join('').replace('~/Documents/', '/').replace('~/', '').replace(/\/\//g, '/');
+      const rit = await fetch(`http://localhost:8080${cit}`)
+        .then(it => it.text());
+      // const xit = ea.getSceneElements().find(it => {
+      //   const zit = input.groupIds.filter(azit => it.groupIds.includes(azit)).length;
+      //   if (it.type == 'text' && zit) {
+      //     return true;
+      //   }
+      // })
+      return rit;
+    } catch (err) {
+      console.error(err);
+      return 'empty';
+    }
+  }
+
+
+  private async defaultJumpMacro(input: ExcalidrawElement, output: ExcalidrawElement) {
+    const TRANSITION_STEP_COUNT = 100;
+    const TRANSITION_DELAY = 1000; //maximum time for transition between slides in milliseconds
+    const FRAME_SLEEP = 1; //milliseconds
+    const EDIT_ZOOMOUT = 0.7; //70% of original slide zoom, set to a value between 1 and 0
+    const FADE_LEVEL = 0.15; //opacity of the slideshow controls after fade delay (value between 0 and 1)
+
+    const getNavigationRect = ({ x1, y1, x2, y2 }) => {
+      const { width, height } = ea.getAppState();
+      const ratioX = width / Math.abs(x1 - x2);
+      const ratioY = height / Math.abs(y1 - y2);
+      let ratio = Math.min(Math.max(ratioX, ratioY), 10);
+
+      const scaledWidth = Math.abs(x1 - x2) * ratio;
+      const scaledHeight = Math.abs(y1 - y2) * ratio;
+
+      if (scaledWidth > width || scaledHeight > height) {
+        ratio = Math.min(width / Math.abs(x1 - x2), height / Math.abs(y1 - y2));
+      }
+
+      const deltaX = (width / ratio - Math.abs(x1 - x2)) / 2;
+      const deltaY = (height / ratio - Math.abs(y1 - y2)) / 2;
+
+      return {
+        left: (x1 < x2 ? x1 : x2) - deltaX,
+        top: (y1 < y2 ? y1 : y2) - deltaY,
+        right: (x1 < x2 ? x2 : x1) + deltaX,
+        bottom: (y1 < y2 ? y2 : y1) + deltaY,
+        nextZoom: ratio,
+      };
+    };
+
+    const sleep = (ms = 0) => new Promise(resolve => setTimeout(resolve, ms));
+
+    let busy = false;
+    const scrollToNextRect = async ({ left, top, right, bottom, nextZoom }, steps = TRANSITION_STEP_COUNT) => {
+      const startTimer = Date.now();
+      let watchdog = 0;
+      while (busy && watchdog++ < 15) await sleep(100);
+      if (busy && watchdog >= 15) return;
+      busy = true;
+      ea.updateScene({ appState: { shouldCacheIgnoreZoom: true } });
+      const { scrollX, scrollY, zoom } = ea.getAppState();
+      const zoomStep = (zoom.value - nextZoom) / steps;
+      const xStep = (left + scrollX) / steps;
+      const yStep = (top + scrollY) / steps;
+      let i = 1;
+      while (i <= steps) {
+        ea.updateScene({
+          appState: {
+            scrollX: scrollX - (xStep * i),
+            scrollY: scrollY - (yStep * i),
+            zoom: { value: zoom.value - zoomStep * i },
+          }
+        });
+        const ellapsed = Date.now() - startTimer;
+        if (ellapsed > TRANSITION_DELAY) {
+          i = i < steps ? steps : steps + 1;
+        } else {
+          const timeProgress = ellapsed / TRANSITION_DELAY;
+          i = Math.min(Math.round(steps * timeProgress), steps)
+          await sleep(FRAME_SLEEP);
+        }
+      }
+      ea.updateScene({ appState: { shouldCacheIgnoreZoom: false } });
+      if (false) {
+        ea.setActiveTool({ type: "laser" });
+      }
+      busy = false;
+    }
+
+    try {
+      const nexit = getNavigationRect({
+        x1: output.x,
+        y1: output.y,
+        x2: output.x + output.width,
+        y2: output.y + output.height,
+      });
+      scrollToNextRect(nexit);
+      return 'ok';
+    } catch (err) {
+      console.error(err);
+      return 'empty';
+    }
+  }
+
+  private async defaultLsMacro(input: ExcalidrawElement, output: ExcalidrawElement): Promise<string[]> {
+    const bit = this.getFullTree(input, output);
+    // bit.pop();
+
+    const cit = bit.join('').replace('~/Documents/', '/').replace('~/', '');
+
+    try {
+      // const dit = await this.executeDeno(`
+      //   async function readDir() {
+      //     const entries = await Deno.readDir('${cit}');
+      //     return entries;
+      //   }
+      // `);
+
+      const rit = await fetch(`http://localhost:8080${cit}`)
+        .then(it => it.text()).then(text => {
+          const parser = new DOMParser();
+          const htmlDocument = parser.parseFromString(text, "text/html");
+          const files = Array.from(htmlDocument.querySelectorAll('tr.file a')).map(it => it.href).filter(it => !it.endsWith('/')).map(xit => { const zit = xit.split('/'); return zit[zit.length - 1]; })
+          const dirs = Array.from(htmlDocument.querySelectorAll('tr.file a')).map(it => it.href).filter(it => it.endsWith('/')).map(xit => { const zit = xit.split('/'); return zit[zit.length - 2]; })
+          return { files, dirs };
+        });
+
+      const dit = [
+        ...rit.files.map(lit => {
+          return {
+            name: lit,
+            isFile: true,
+            isDirectory: false,
+          }
+        }),
+        ...rit.dirs.map(lit => {
+          return {
+            name: lit,
+            isFile: false,
+            isDirectory: true,
+          }
+        })
+      ]
+
+      let width = dit.length > 0 ? output.width / dit.length : output.width;
+      let height = output.height;
+      let x = output.x;
+      let y = output.y;
+
+      const egit = nanoid();
+
+      let margin = input.fontSize ? input.fontSize * 1 : input.height * 2;
+
+      const zit = [
+      ];
+
+      const frameId = nanoid();
+      const mit =
+        dit.filter(it => it.isFile);
+      const groupIds = [...output.groupIds];
+      if (groupIds.length == 0) {
+        groupIds.push(nanoid());
+      }
+      for (const fit of mit) {
+        const igit = nanoid();
+        const kitId = nanoid();
+        const litId = nanoid();
+        const kit = {
+          type: 'text',
+          id: kitId,
+          text: `${fit.name}`,
+          // width,
+          // height,
+          groupIds: [...groupIds, igit],
+          // frameId: frameId,
+          x: x,
+          y: output.y + output.height + margin,
+          fontSize: input.fontSize,
+          customData: {
+            macros: {
+              cat: true,
+              write: true,
+            },
+            outputTo: litId,
+            parentId: output.id,
+          },
+        };
+        const akit = window.convertToExcalidrawElements([kit])[0];
+        const lit = {
+          type: 'text',
+          id: litId,
+          x: x,
+          y: akit.y + akit.height,
+          // frameId: frameId,
+          groupIds: [...groupIds, igit],
+          text: `${fit.isFile ? "<...file...content...here>" : "[--folder--]"}`,
+          fontSize: akit.fontSize > 2 ? akit.fontSize - 1 : 2,
+        }
+        const alit = window.convertToExcalidrawElements([lit])[0];
+        const wit = {
+          id: nanoid(),
+          type: 'arrow',
+          x: output.x,
+          y: output.y,
+          width: kit.x - output.x,
+          height: kit.y - output.y,
+          start: {
+            type: 'text',
+            id: output.id,
+            // gap: 1,
+          },
+          end: {
+            type: 'text',
+            id: kit.id,
+            // gap: 1,
+          },
+          // label: {
+          //   text: ``,
+          // }
+        };
+
+        width = Math.max(alit.width, akit.width);
+        x += width;
+        x += margin;
+
+        zit.push(kit);
+        zit.push(lit);
+        // zit.push(wit);
+      }
+      // const kit =
+      // {
+      //   id: frameId,
+      //   type: 'frame',
+      //   width: zit[zit.length - 1].x - zit[0].x,
+      //   height: output.height,
+      //   name: `${cit}`,
+      //   x: output.x,
+      //   y: output.y,
+      //   // groupIds: [groupId],
+      // };
+      // zit.push(kit);
+      const nit =
+        dit.filter(it => it.isDirectory);
+      // width = kit.width / nit.length;
+      // height = kit.height;
+      // x = kit.x;
+      // margin = kit.height;
+      // y = kit.y + kit.height + margin;
+
+      // groupIds.push(egit);
+      const xazit = zit.length > 0 ?
+        Math.max(...zit.map(ezit => ezit.x)) : input.x;
+      const weit = xazit + width - (zit[0] ? zit[0].x : input.x);
+      const eweit =
+        window.convertToExcalidrawElements([{
+          type: 'text',
+          fontSize: output.fontSize,
+          text: '-',
+          x: 0, y: 0,
+        }])[0].width;
+      const weweit = weit / eweit;
+      const text = weweit > output.text.length ? '/' + '-'.repeat(weweit) : output.text;
+      let xaweit = output.width;
+      const placeholder = `${text}` // output.text ?? '/-------------';
+      for (const vit of nit) {
+        const ritId = nanoid();
+        const assit = nanoid();
+        const qit = {
+          id: nanoid(),
+          type: 'text',
+          text: `/${vit.name}`,
+          // text: '/-------------',
+          width: output.width,
+          height: output.height,
+          fontSize: output.fontSize,
+          x: output.x + weit + xaweit,
+          y: output.y,
+          customData: {
+            macros: {
+              ls: true,
+            },
+            outputTo: ritId,
+            parentId: output.id,
+          },
+          groupIds: [assit],
+          // groupIds: [ugit],
+        };
+        xaweit += qit.width;
+        zit.push(qit);
+        const rit = {
+          ...qit,
+          customData: {
+            parentId: qit.id,
+          },
+          y: qit.y + margin,
+          text: placeholder,
+          id: ritId,
+          // groupIds: [assit],
+        }
+        zit.push(rit);
+        const wit = {
+          // id: nanoid(),
+          type: 'arrow',
+          x: output.x + weit,
+          y: output.y,
+          // y: kit.y + kit.height,
+          width: xaweit,
+          height: 10,
+          start: {
+            type: 'text',
+            id: output.id,
+            gap: 1,
+          },
+          // end: {
+          //   type: 'text',
+          //   id: qit.id,
+          //   gap: 1,
+          // },
+          label: {
+            text: `/${vit.name}`,
+          }
+        };
+        // groupIds.push(git);
+        // x += width;
+        // zit.push(wit);
+        // break;
+      }
+
+      zit.push({
+        ...output,
+        // frameId: frameId,
+        groupIds,
+        width: weit,
+        text,
+      });
+
+      const result =
+        window.convertToExcalidrawElements(zit);
+
+      return result;
+    } catch (err) {
+      throw `ls macro: ${err.toString()}`;
+    }
+  }
+
+  private getFullTree(it: ExcalidrawElement, out: ExcalidrawElement): string[] {
+    const els = [...ea.getSceneElements()];
+
+    let fullTree: string[] = [];
+
+    const getIncomingArrow = (assit) =>
+      assit.boundElements?.find(bit => {
+        if (bit.type == 'arrow') {
+          const cit = els.find(cit => cit.id == bit.id);
+          if (cit && cit.endBinding.elementId == assit.id) {
+            return true;
+          }
+        }
+      });
+
+    let xupit;
+    let incomingArrow;
+
+    incomingArrow = getIncomingArrow(it);
+    if (!incomingArrow) {
+
+      if (it?.customData?.parentId) {
+        const upit = ea.getSceneElements().find(essit => essit.id == it.customData.parentId);
+        if (upit) {
+          if (upit?.customData?.parentId) {
+            incomingArrow = {
+              id: nanoid(),
+            }
+            els.push({
+              id: incomingArrow.id,
+              startBinding: {
+                elementId: upit.id,
+              },
+              endBinding: {
+                elementId: it.id,
+              },
+            })
+          } else {
+            incomingArrow = getIncomingArrow(upit);
+            if (upit.text) {
+              xupit = upit.text.replace(/^\/(\-)+/, '/');
+            }
+          }
+        }
+      } else {
+
+        if (!incomingArrow) {
+          for (const epit of it.groupIds) {
+            const upit = els.find(kupit => kupit.groupIds.includes(epit) && (kupit.type == 'rectangle' || (kupit.type == 'text' && kupit.text.startsWith('/'))));
+            if (upit) {
+              incomingArrow = getIncomingArrow(upit);
+
+              if (upit.text) {
+                xupit = upit.text.replace(/^\/(\-)+/, '/');
+              }
+            }
+          }
+        }
+      }
+
+    }
+    if (incomingArrow) {
+      const bit = els.find(bit => bit.id == incomingArrow.id);
+      const cit = els.find(cit => cit.type == 'text' && cit.id == bit.startBinding.elementId);
+      if (cit) {
+        const ecit = els.find(becit => becit.id == bit.endBinding.elementId);
+        fullTree = [...fullTree, ...this.getFullTree(cit, ecit)];
+      }
+    }
+
+    if (xupit) {
+      fullTree.push(xupit);
+    }
+
+    if (it.text) {
+      fullTree.push(it.text.replace(/^\/(\-)+/, '/'));
+    }
+
+    const outgoingArrow = it.boundElements?.find(bit => {
+      if (bit.type == 'arrow') {
+        const cit = els.find(cit => cit.id == bit.id);
+        if (cit && cit.startBinding.elementId == it.id && cit.endBinding.elementId == out.id) {
+          return true;
+        }
+      }
+    });
+
+    if (outgoingArrow) {
+      const bit = els.find(bit => bit.id == outgoingArrow.id);
+      if (bit && bit.type == 'arrow') {
+        if (bit.boundElements) {
+          const cit = bit.boundElements.find(cit => cit.type == 'text');
+          if (cit) {
+            const dit = els.find(dit => dit.id == cit.id);
+            if (dit && dit.type == 'text') {
+              fullTree.push(`${dit.text}`);
+            }
+          }
+        } else {
+          fullTree.push('/');
+        }
+      }
+    }
+
+    return fullTree;
+  }
+
+  private async defaultFetchMacro(input: ExcalidrawElement, output: ExcalidrawElement): Promise<string> {
+    const urlTree = this.getFullTree(input, output);
+
+    let url = urlTree.join('');
+
+    try {
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        if (url.startsWith('https://github.com')) {
+          url = url.replace('https://github.com', 'https://raw.githubusercontent.com');
+          if (url.includes('/tree')) {
+            const branch = url.substring(url.indexOf('/tree')).split('/')[2];
+            url = url.replace(`/tree/${branch}`, `/${branch}`);
+          }
+        }
+
+        const response = await fetch(url);
+
+        if (response.status == 200) {
+          const text = await response.text();
+          return text;
+        }
+
+        throw new Error(`not found ${url}`);
+      } else if (url.startsWith('~/')) {
+        const result = await this.executeDeno(`
+                   async function readFile(input) {
+          const text = await Deno.readTextFile('${url}');
+return text;
+        } 
+          `) as string;
+        return result;
+      }
+      throw new Error(`${url} is neither web link nor local root path`);
+    } catch (err) {
+      console.error(err);
+      return url;
+    }
+  }
+
+  private async defaultGpt4Macro(input: ExcalidrawElement, argument: string): Promise<string> {
+    const gptScript = this.constructGptScript('gpt-4', window.OPENAI_KEY);
+    const result = await this.executeDeno(
+      gptScript,
+      input,
+      argument,
+    ) as string;
+    return result;
+  }
+
+  private async defaultGpt3Macro(input: ExcalidrawElement, argument: string): Promise<string> {
+    const gptScript = this.constructGptScript('gpt-3.5-turbo', window.OPENAI_KEY);
+    const result = await this.executeDeno(
+      gptScript,
+      input,
+      argument,
+    ) as string;
+    return result;
+  }
+
+  private defaultJsMacro(input: ExcalidrawElement, argument: string): string {
     this.log(`Input received: ${JSON.stringify(input)}`, "defaultJsMacro");
     try {
       if (input.type !== "text") throw "not ok";
@@ -100,7 +652,7 @@ class GalaxyAPI {
     }
   }
 
-  private defaultDenoMacro(input: ExcalidrawElement): Promise<ExcalidrawElement[]> {
+  private defaultDenoMacro(input: ExcalidrawElement, argument: string): Promise<ExcalidrawElement[]> {
     this.log(`Input received: ${JSON.stringify(input)}`, "defaultDenoMacro");
     try {
       if (input.type !== "text") throw "not ok";
@@ -180,21 +732,42 @@ class GalaxyAPI {
     };
   }
 
-  private async executeDeno(code: string, input?: ExcalidrawElement) {
+  private async executeDeno(code: string, input?: ExcalidrawElement, argument?: string) {
     return new Promise(async (resolve, reject) => {
-      const taskId = nanoid();
+      const taskId = window.taskId;  // nanoid();
+      window.taskId++;
       this.registerCallback(taskId, (denoResult) => {
         if (denoResult.success) {
           return resolve(denoResult.data);
         } else {
-          return reject(denoResult.error);
+          return reject(`deno error: ${denoResult?.error}`);
         }
       });
-      window.webui.call('executeDeno', JSON.stringify({
-        taskId,
-        code,
-        input: typeof input == 'object' ? input : {},
-      }));
+      try {
+        if (!window.webui) throw `Oops.. backend macros only allowed in Desktop mode!`;
+        if (typeof input != 'object') {
+          input = {};
+        }
+        const inputData = {
+          taskId,
+          code,
+          input,
+          argument: argument ?? '',
+        };
+        if (!window.inputData) {
+          window.inputData = {};
+        }
+        window.inputData[taskId] = inputData;
+        window.executeDeno(
+          code,
+          JSON.stringify(input),
+          taskId,
+        )
+        // window.webui.call('executeDeno', JSON.stringify(inputData));
+      } catch (err) {
+        console.error(err);
+        reject(err);
+      }
     });
   }
 
@@ -213,22 +786,49 @@ class GalaxyAPI {
 
             const scene = {
               elements: window.ea.getSceneElements().filter(it => it.frameId == frameId),
-              files: window.ea.getFiles(),
+              // files: window.ea.getFiles(),
             }
 
             const escapedSceneName = sceneName.replace(/'/g, "\\'");
             const escapedSceneJSON = JSON.stringify(scene).replace(/'/g, "\\'");
+            console.log('escapedSceneJSON', escapedSceneJSON);
+
+            //             const denoScript = `
+            //         async function saveScene(input) {
+            //           const kvBlob = await import('https://deno.land/x/kv_toolbox@0.0.4/blob.ts');
+            //   const kv = await Deno.openKv();
+            //   const blob = new TextEncoder().encode('${escapedSceneJSON}');
+            //   await kvBlob.set(kv, ["layers", '${escapedSceneName}'], blob);
+            //   await kv.close();
+            //   return blob.length;
+            //         }
+            // `;
 
             const denoScript = `
-        async function saveScene(input) {
-          const kvBlob = await import('https://deno.land/x/kv_toolbox@0.0.4/blob.ts');
-  const kv = await Deno.openKv();
-  const blob = new TextEncoder().encode('${escapedSceneJSON}');
-  await kvBlob.set(kv, ["layers", '${escapedSceneName}'], blob);
-  await kv.close();
-  return blob.length;
-        }
-`;
+              async function saveScene() {
+  const scene = JSON.parse(${JSON.stringify(escapedSceneJSON)});
+
+  const encoder = new TextEncoder();
+            
+            const fileIds = [...new Set(scene.elements.filter(it => it.type == 'image').map(it => it.fileId))];
+            
+            fileIds.forEach(async (fileId) => {
+    const fileDataURL = await firstWindow.script("return window.ea.getFiles()[fileId].dataURL;");
+
+    // Remove data URL prefix and convert from base64 to a Uint8Array
+    const base64Data = fileDataURL.split(';base64,').pop();
+    const decodedData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+
+    // Extract file type from data URL
+    const fileType = fileDataURL.split(';')[0].split('/')[1];
+
+    await Deno.writeFile(galaxyPath + '/' + fileId + '.' + fileType, decodedData);
+                                  
+            });
+            const sceneData = JSON.stringify(scene);
+            await Deno.writeTextFile(galaxyPath + '/' + ${sceneName} + '.json', sceneData); return fileIds.length;
+              }
+            `;
 
             try {
               const result = await this.executeDeno(
@@ -282,67 +882,49 @@ class GalaxyAPI {
             throw "Layer name not provided.";
           }
 
-          const scene = {
-            elements: window.ea.getSceneElements().filter(it => it.frameId == frameId).map(it => {
-              return {
-                ...it,
-                id: null,
-              }
-            }),
-            files: window.ea.getFiles(),
-          };
+          // const [error, ipfsLink] = await window.ipfs.upload(scene);
 
-          const [error, ipfsLink] = await window.ipfs.upload(scene);
-
-          if (error) {
-            this.log('ipfs error' + error, 'handlePublish');
-            throw new Error(error);
-          }
+          // if (error) {
+          //   this.log('ipfs error' + error, 'handlePublish');
+          //   throw new Error(error);
+          // }
 
           if (!window.contracts || !window.contracts.write) {
             throw new Error("Smart contract write function is not available.");
           }
 
-          const args = [layerName, ipfsLink];
-          this.log('args ' + args, 'handlePublish');
+          // const args = [layerName, ipfsLink];
+          // this.log('args ' + args, 'handlePublish');
 
-          if (!window.galaxyMetadata) {
-            window.galaxyMetadata = await fetch(this.galaxyMetadata)
-              .then(it => it.json());
-          }
+          // if (!window.galaxyMetadata) {
+          //   window.galaxyMetadata = await fetch(this.galaxyMetadata)
+          //     .then(it => it.json());
+          // }
 
-          const metadata = window.galaxyMetadata;
+          // const metadata = window.galaxyMetadata;
 
-          this.log('metadata' + metadata, 'handlePublish');
+          // this.log('metadata' + metadata, 'handlePublish');
 
-          const { gasRequired, continueWithTransaction, caller } = await window.contracts.write({
-            address: galaxyContractAddress,
-            method: 'createLayer',
-            args,
-            metadata,
-          });
+          const key = `${window.user?.key}/${layerName}`;
 
           window.showModal({
             title: "Confirm Transaction",
-            description: `Gas Cost: ${gasRequired}\nIPFS Link: ${ipfsLink}\nLayer Name: ${layerName}`,
+            description: `Layer key: ${key}`,
             callback: async () => {
-              await continueWithTransaction({
-                onSuccess: (trxId) => {
-                  window.showNotification({ message: `${trxId} transaction`, type: 'info' });
-                  const galaxyLink = `galaxy://${caller}/${layerName}`;
-                  window.showModal({
-                    title: galaxyLink,
-                    description: 'Transaction ID ' + trxId,
-                  })
-                  return resolve(galaxyLink);
-                },
-                onStatus: (status) => {
-                  window.showNotification({ message: `${status} transaction`, type: 'info' });
-                  window.showModal({
-                    title: 'Transaction Status ' + status,
-                  })
-                },
+              const writeResult = await window.contracts.write({
+                // address: galaxyContractAddress,
+                // method: 'createLayer',
+                args: { key, frameId },
+                // metadata,
               });
+
+              console.log('writeResult', writeResult)
+
+              window.showModal({
+                title: `galaxy://${key}`,
+                description: 'Copy & Share the link above, create a new frame and press Open to download',
+              })
+              return resolve(`galaxy://${key}`);
             }
           });
         } catch (error) {
@@ -351,29 +933,36 @@ class GalaxyAPI {
         }
       };
 
-      window.showModal({
-        title: "Connect Wallet",
-        description: `Click Confirm to invoke ${window.walletName} wallet extension`,
-        callback: async () => {
-          await window.connect();
-          window.showModal({
-            title: "Publish to Galaxy",
-            message: "Please provide a layer name to publish to the Galaxy.",
-            inputField: {
-              label: "Layer Name",
-              value: layerName,
-              placeholder: "Enter Layer Name",
-              onChange: (e) => {
-                layerName = e.target.value;
-              }
-            },
-            callback: handlePublishToGalaxy
-          });
-        }
-      })
+      const nov9 = () => {
+        window.showModal({
+          title: "Publish to Galaxy",
+          message: "Please provide a layer name to publish to the Galaxy.",
+          inputField: {
+            label: "Layer Name",
+            value: layerName,
+            placeholder: "Enter Layer Name",
+            onChange: (e) => {
+              layerName = e.target.value;
+            }
+          },
+          callback: handlePublishToGalaxy
+        });
+      }
+
+      if (!window.user) {
+        window.showModal({
+          title: "Connect Wallet",
+          description: `Click Confirm to invoke NFID`,
+          callback: async () => {
+            await window.connect();
+            nov9();
+          }
+        })
+      } else {
+        nov9();
+      }
     });
   }
-
   private async defaultOpenMacro(input: ExcalidrawElement): Promise<ExcalidrawElement[]> {
     this.log(`Input received: ${JSON.stringify(input)}`, "defaultOpenMacro");
 
@@ -398,34 +987,51 @@ class GalaxyAPI {
             let scene;
 
             if (link.startsWith('ipfs://') || link.startsWith('galaxy://')) {
-
               // Resolve galaxyLink to IPFS link
               if (link.startsWith('galaxy://')) {
 
-                if (!window.galaxyMetadata) {
-                  window.galaxyMetadata = await fetch(this.galaxyMetadata)
-                    .then(it => it.json());
-                }
+                // if (!window.galaxyMetadata) {
+                //   window.galaxyMetadata = await fetch(this.galaxyMetadata)
+                //     .then(it => it.json());
+                // }
 
-                const metadata = window.galaxyMetadata;
+                // const metadata = window.galaxyMetadata;
 
                 const [user, name] = link.replace('galaxy://', '').split('/');
-                const result = await window.contracts.read({
-                  address: galaxyContract,
-                  method: 'resolveLink',
-                  args: [user, name],
-                  metadata,
-                  options: {
-                    defaultCaller: '5ERMmhn6tWtbSX6HspQcztkHbpaYKiZHfiouDBDXgSnMhxU6'
-                  }
-                });
-                link = result.value.decoded.Ok
-                this.log('! link 2', link);
-              }
-              scene =
-                await window.ipfs.download(link);
+                const key = `${user}/${name}`;
 
-              this.log('scene ' + scene, 'remote');
+                if (!window.user) {
+                  await new Promise<void>(resolve => {
+                    window.showModal({
+                      title: "Connect Wallet",
+                      description: `Click Confirm to invoke NFID`,
+                      callback: async () => {
+                        await window.connect();
+                        resolve();
+                      }
+                    })
+                  })
+                }
+
+                const result = await window.contracts.read({
+                  // address: galaxyContract,
+                  // method: 'resolveLink',
+                  args: { key },
+                  // metadata,
+                  // options: {
+                  //   defaultCaller: '5ERMmhn6tWtbSX6HspQcztkHbpaYKiZHfiouDBDXgSnMhxU6'
+                  // }
+                });
+                scene = result.data;
+                // link = ``
+                // scene = '';
+                // link = result.value.decoded.Ok
+                // this.log('! link 2', link);
+              }
+              // scene =
+              //   await window.ipfs.download(link);
+
+              // this.log('scene ' + scene, 'remote');
 
             } else {
               const denoScript = `
@@ -459,7 +1065,7 @@ const layerStr = new TextDecoder().decode(layerBinary);
                 id: nanoid(),
               }
             }));
-            
+
             // Extracting the x, y coordinates from the user-defined frame
             const frameX = input.x;
             const frameY = input.y;
@@ -501,6 +1107,10 @@ const layerStr = new TextDecoder().decode(layerBinary);
                 height: frameHeight
               }
             ];
+
+            ea.addFiles(
+              Object.entries(scene.files ?? {}).map(([_, value]) => value),
+            );
 
             // If this is in a Promise, resolving it with resultElements
             resolve(resultElements);
